@@ -24,4 +24,15 @@ public class User {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "role", nullable = false)
+    private String role;
+
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+        if (this.role == null) {
+            this.role = "USER";
+        }
+    }
 }
