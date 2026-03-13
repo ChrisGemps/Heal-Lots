@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 
 const SERVICES = [
   { id: 1, name: 'Traditional Hilot',   specialist: 'Manang Rosa',    emoji: '🤲', tag: 'Most Popular', rating: 4.9, reviews: 214 },
@@ -35,6 +35,7 @@ const DAY_NAMES   = ['S','M','T','W','T','F','S'];
 
 export default function BookAppointment({ setIsLoggedIn }) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const raw  = localStorage.getItem('user');
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
@@ -162,6 +163,29 @@ export default function BookAppointment({ setIsLoggedIn }) {
         .ba-user-info { line-height: 1.2; }
         .ba-user-name { font-size: 14px; font-weight: 600; color: #e2c98a; }
         .ba-user-role { font-size: 12px; color: #a8956b; }
+
+        .ba-topbar-nav {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .ba-topbar-nav a {
+          font-family: 'DM Sans', sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+          color: #a8956b;
+          text-decoration: none;
+          padding: 7px 14px;
+          border-radius: 8px;
+          transition: all 0.18s;
+        }
+
+        .ba-topbar-nav a:hover,
+        .ba-topbar-nav a.active {
+          color: #fbbf24;
+          background: rgba(217,119,6,0.12);
+        }
 
         .ba-logout-btn {
           background: rgba(217,119,6,0.12); border: 1px solid rgba(217,119,6,0.3);
@@ -371,6 +395,11 @@ export default function BookAppointment({ setIsLoggedIn }) {
             <img src="/logo.png" alt="Heal Lots" className="ba-topbar-logo" />
           </div>
           <div className="ba-topbar-right">
+            <nav className="ba-topbar-nav">
+              <Link to="/dashboard" className={location.pathname === '/dashboard' ? 'active' : ''}>Dashboard</Link>
+              <Link to="/book"         className={location.pathname === '/book'         ? 'active' : ''}>Book Session</Link>
+              <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
+            </nav>
             <div className="ba-user-badge">
               <div className="ba-avatar">{displayName.charAt(0).toUpperCase()}</div>
               <div className="ba-user-info">

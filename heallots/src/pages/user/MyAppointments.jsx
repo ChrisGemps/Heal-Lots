@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 
 
 export default function MyAppointments({ setIsLoggedIn }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [tab, setTab] = useState("upcoming");
 
   const raw = localStorage.getItem('user');
@@ -113,6 +114,29 @@ const handleLogout = () => {
       .ud-user-role {
         font-size: 12px;
         color: #a8956b;
+      }
+
+      .ud-topbar-nav {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .ud-topbar-nav a {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        color: #a8956b;
+        text-decoration: none;
+        padding: 7px 14px;
+        border-radius: 8px;
+        transition: all 0.18s;
+      }
+
+      .ud-topbar-nav a:hover,
+      .ud-topbar-nav a.active {
+        color: #fbbf24;
+        background: rgba(217,119,6,0.12);
       }
 
       .ud-logout-btn {
@@ -246,6 +270,11 @@ const handleLogout = () => {
   </div>
 
   <div className="ud-topbar-right">
+    <nav className="ud-topbar-nav">
+      <Link to="/dashboard" className={location.pathname === '/dashboard' ? 'active' : ''}>Dashboard</Link>
+      <Link to="/book"         className={location.pathname === '/book'         ? 'active' : ''}>Book Session</Link>
+      <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
+    </nav>
     <div className="ud-user-badge">
       <div className="ud-avatar">
         {displayName.charAt(0).toUpperCase()}

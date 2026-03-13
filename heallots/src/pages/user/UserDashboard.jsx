@@ -1,7 +1,8 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 
-export default function UserDashboard({ setIsLoggedIn }) {
+export default function UserDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const raw = localStorage.getItem('user');
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
@@ -21,7 +22,6 @@ export default function UserDashboard({ setIsLoggedIn }) {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    if (setIsLoggedIn) setIsLoggedIn(false);
     navigate('/', { replace: true });
   };
 
@@ -98,6 +98,29 @@ export default function UserDashboard({ setIsLoggedIn }) {
         .ud-user-role {
           font-size: 12px;
           color: #a8956b;
+        }
+
+        .ud-topbar-nav {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .ud-topbar-nav a {
+          font-family: 'DM Sans', sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+          color: #a8956b;
+          text-decoration: none;
+          padding: 7px 14px;
+          border-radius: 8px;
+          transition: all 0.18s;
+        }
+
+        .ud-topbar-nav a:hover,
+        .ud-topbar-nav a.active {
+          color: #fbbf24;
+          background: rgba(217,119,6,0.12);
         }
 
         .ud-logout-btn {
@@ -308,6 +331,11 @@ export default function UserDashboard({ setIsLoggedIn }) {
             <img src="/logo.png" alt="Heal Lots" className="ud-topbar-logo" />
           </div>
           <div className="ud-topbar-right">
+            <nav className="ud-topbar-nav">
+              <Link to="/dashboard" className={location.pathname === '/dashboard' ? 'active' : ''}>Dashboard</Link>
+              <Link to="/book"         className={location.pathname === '/book'         ? 'active' : ''}>Book Session</Link>
+              <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
+            </nav>
             <div className="ud-user-badge">
               <div className="ud-avatar">
                 {displayName.charAt(0).toUpperCase()}
@@ -349,7 +377,7 @@ export default function UserDashboard({ setIsLoggedIn }) {
                 <p>View and manage your sessions</p>
               </div>
             </div>
-            <div className="ud-action-card" onClick={() => navigate('/')}>
+            <div className="ud-action-card" onClick={() => { navigate('/'); setTimeout(() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' }), 150); }}>
               <div className="ud-action-icon" style={{ background: '#ede9fe' }}>🌿</div>
               <div className="ud-action-text">
                 <h4>Our Services</h4>

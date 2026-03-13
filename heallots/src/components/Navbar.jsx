@@ -1,21 +1,11 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 function Navbar({ isLoggedIn, isAdmin }) {
   const location = useLocation();
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/');
-    window.location.reload(); // Force a reload to update the state
-  };
 
   const navLinks = [
-    ...(isLoggedIn ? [{ to: "/book",         label: "Book Session",    pill: false }] : []),
-    ...(isLoggedIn ? [{ to: "/appointments", label: "My Appointments", pill: false }] : []),
-    ...(isLoggedIn && isAdmin ? [{ to: "/admin", label: "Admin",       pill: false }] : []),
-    ...(!isLoggedIn ? [{ to: "/login",       label: "Sign In",         pill: true  }] : []),
+    ...(isLoggedIn && isAdmin ? [{ to: "/admin", label: "Admin", pill: false }] : []),
+    ...(!isLoggedIn ? [{ to: "/login", label: "Sign In", pill: true }] : []),
   ];
 
   return (
@@ -47,7 +37,7 @@ function Navbar({ isLoggedIn, isAdmin }) {
         .hl-brand:hover { opacity: 0.85; }
 
         .hl-logo {
-          height: 55px;
+          height: 44px;
           width: auto;
           flex-shrink: 0;
           filter: brightness(0) invert(1)

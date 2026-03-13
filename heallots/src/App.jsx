@@ -31,7 +31,7 @@ function RequireAdmin({ isLoggedIn, isAdmin, children }) {
 // ── Layout ────────────────────────────────────────────────────────────────────
 function Layout({ isLoggedIn, isAdmin, children }) {
   const location = useLocation();
-  const hideNavbarOn = ['/dashboard', '/admin', '/book', '/appointments'];
+  const hideNavbarOn = ['/dashboard', '/admin', '/book', '/appointments', '/login', '/register', '/'];
   const showNavbar = !hideNavbarOn.includes(location.pathname);
 
   return (
