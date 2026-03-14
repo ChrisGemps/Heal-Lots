@@ -20,7 +20,7 @@ import Profile        from "./pages/user/Profile";
 // ── Protected route wrappers ──────────────────────────────────────────────────
 
 function RequireAuth({ isLoggedIn, children }) {
-  return isLoggedIn ? children : <Navigate to="/" replace />;
+  return isLoggedIn ? children : <Navigate to="/login" replace />;
 }
 
 function RequireAdmin({ isLoggedIn, isAdmin, children }) {
