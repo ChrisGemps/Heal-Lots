@@ -17,6 +17,10 @@ public class AuthResponse {
         private String id;
         private String fullName;
         private String email;
+        private String phone;
+        private String birthday;
+        private String gender;
+        private String address;
         private String role;
 
         public static UserDto fromUser(User user) {
@@ -24,6 +28,10 @@ public class AuthResponse {
             dto.setId(user.getId().toString());
             dto.setFullName(user.getFullName());
             dto.setEmail(user.getEmail());
+            dto.setPhone(user.getPhone());
+            dto.setBirthday(user.getBirthday());
+            dto.setGender(user.getGender());
+            dto.setAddress(user.getAddress());
             dto.setRole(user.getRole() != null ? user.getRole() : "USER");
             return dto;
         }

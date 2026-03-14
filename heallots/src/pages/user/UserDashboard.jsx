@@ -7,6 +7,7 @@ export default function UserDashboard() {
   const raw = localStorage.getItem('user');
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Patient';
+  const photo = localStorage.getItem('userPhoto') || null;
 
   const appointments = [
     { specialist: 'Manang Rosa', service: 'Traditional Hilot', date: 'Feb 8, 2026', time: '10:00 AM', status: 'Scheduled' },
@@ -76,6 +77,7 @@ export default function UserDashboard() {
           gap: 10px;
         }
 
+        .ud-avatar img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
         .ud-avatar {
           width: 36px; height: 36px;
           background: linear-gradient(135deg, #d97706, #b45309);
@@ -337,8 +339,8 @@ export default function UserDashboard() {
               <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
             </nav>
             <div className="ud-user-badge">
-              <div className="ud-avatar">
-                {displayName.charAt(0).toUpperCase()}
+              <div className="ud-avatar" onClick={() => navigate('/profile')} title="View Profile" style={{cursor:'pointer'}}>
+                {photo ? <img src={photo} alt="Profile" /> : displayName.charAt(0).toUpperCase()}
               </div>
               <div className="ud-user-info">
                 <div className="ud-user-name">{displayName}</div>

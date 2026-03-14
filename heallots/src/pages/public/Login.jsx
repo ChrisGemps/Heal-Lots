@@ -83,7 +83,6 @@ function Login({ setIsLoggedIn, setIsAdmin }) {
               <li><span className="dot">🤲</span> Skilled hilot practitioners</li>
               <li><span className="dot">🌿</span> Traditional Filipino methods</li>
               <li><span className="dot">📅</span> Easy appointment booking</li>
-              <li><span className="dot">🔒</span> Private & secure records</li>
             </ul>
           </div>
         </div>

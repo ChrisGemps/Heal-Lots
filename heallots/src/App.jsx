@@ -15,11 +15,12 @@ import MyAppointments   from "./pages/user/MyAppointments";
 
 // Admin-only pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import Profile        from "./pages/user/Profile";
 
 // ── Protected route wrappers ──────────────────────────────────────────────────
 
 function RequireAuth({ isLoggedIn, children }) {
-  return isLoggedIn ? children : <Navigate to="/login" replace />;
+  return isLoggedIn ? children : <Navigate to="/" replace />;
 }
 
 function RequireAdmin({ isLoggedIn, isAdmin, children }) {
@@ -31,7 +32,7 @@ function RequireAdmin({ isLoggedIn, isAdmin, children }) {
 // ── Layout ────────────────────────────────────────────────────────────────────
 function Layout({ isLoggedIn, isAdmin, children }) {
   const location = useLocation();
-  const hideNavbarOn = ['/dashboard', '/admin', '/book', '/appointments', '/login', '/register', '/'];
+  const hideNavbarOn = ['/dashboard', '/admin', '/book', '/appointments','login', '/register', '/profile'];
   const showNavbar = !hideNavbarOn.includes(location.pathname);
 
   return (
@@ -78,6 +79,12 @@ function App() {
           <Route path="/appointments" element={
             <RequireAuth isLoggedIn={isLoggedIn}>
               <MyAppointments setIsLoggedIn={setIsLoggedIn} />
+            </RequireAuth>
+          } />
+
+          <Route path="/profile" element={
+            <RequireAuth isLoggedIn={isLoggedIn}>
+              <Profile setIsLoggedIn={setIsLoggedIn} />
             </RequireAuth>
           } />
 

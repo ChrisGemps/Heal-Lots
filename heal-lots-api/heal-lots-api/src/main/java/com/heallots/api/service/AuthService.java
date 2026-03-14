@@ -5,6 +5,7 @@ import com.heallots.api.repository.UserRepository;
 import com.heallots.api.dto.LoginRequest;
 import com.heallots.api.dto.RegisterRequest;
 import com.heallots.api.dto.AuthResponse;
+import com.heallots.api.dto.UpdateProfileRequest;
 import com.heallots.api.config.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,6 +32,10 @@ public class AuthService {
         user.setFullName(req.getFullName());
         user.setEmail(req.getEmail());
         user.setPassword(passwordEncoder.encode(req.getPassword()));
+        user.setPhone(req.getPhone());
+        user.setBirthday(req.getBirthday());
+        user.setGender(req.getGender());
+        user.setAddress(req.getAddress());
         user.setRole("USER");
 
         User savedUser = userRepository.save(user);
@@ -59,5 +64,37 @@ public class AuthService {
         response.setToken(token);
         response.setUser(AuthResponse.UserDto.fromUser(user));
         return response;
+    }
+
+    public void changePassword(String email, String currentPassword, String newPassword) throws Exception {
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("User not found.");
+        }
+
+        User user = userOpt.get();
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new IllegalArgumentException("Current password is incorrect.");
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    public User updateProfile(String email, UpdateProfileRequest req) throws Exception {
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("User not found.");
+        }
+
+        User user = userOpt.get();
+        
+        if (req.getFullName() != null) user.setFullName(req.getFullName());
+        if (req.getPhone() != null) user.setPhone(req.getPhone());
+        if (req.getBirthday() != null) user.setBirthday(req.getBirthday());
+        if (req.getGender() != null) user.setGender(req.getGender());
+        if (req.getAddress() != null) user.setAddress(req.getAddress());
+        
+        return userRepository.save(user);
     }
 }

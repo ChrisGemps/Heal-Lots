@@ -22,6 +22,18 @@ public class User {
     @Column(nullable = false)
     private String password; 
 
+    @Column(name = "phone")
+    private String phone;
+
+    @Column(name = "birthday")
+    private String birthday;
+
+    @Column(name = "gender")
+    private String gender;
+
+    @Column(name = "address")
+    private String address;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

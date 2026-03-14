@@ -85,6 +85,7 @@ export default function BookAppointment({ setIsLoggedIn }) {
   };
 
   const displayName = user?.fullName || user?.name || 'Patient';
+  const photo = user?.photo || user?.profilePicture || '';
 
   if (submitted) {
     return (
@@ -151,6 +152,7 @@ export default function BookAppointment({ setIsLoggedIn }) {
         .ba-topbar-right { display: flex; align-items: center; gap: 16px; }
         .ba-user-badge   { display: flex; align-items: center; gap: 10px; }
 
+        .ba-avatar img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
         .ba-avatar {
           width: 36px; height: 36px;
           background: linear-gradient(135deg, #d97706, #b45309);
@@ -401,7 +403,7 @@ export default function BookAppointment({ setIsLoggedIn }) {
               <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
             </nav>
             <div className="ba-user-badge">
-              <div className="ba-avatar">{displayName.charAt(0).toUpperCase()}</div>
+              <div className="ba-avatar" onClick={() => navigate('/profile')} title="View Profile" style={{cursor:'pointer'}}>{photo ? <img src={photo} alt="Profile" /> : displayName.charAt(0).toUpperCase()}</div>
               <div className="ba-user-info">
                 <div className="ba-user-name">{displayName}</div>
                 <div className="ba-user-role">Patient</div>

@@ -5,10 +5,9 @@ import lombok.*;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class RegisterRequest {
+public class UpdateProfileRequest {
     private String fullName;
     private String email;
-    private String password;
     private String phone;
     private String birthday;
     private String gender;
