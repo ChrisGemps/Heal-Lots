@@ -94,6 +94,7 @@ public class AuthService {
         if (req.getBirthday() != null) user.setBirthday(req.getBirthday());
         if (req.getGender() != null) user.setGender(req.getGender());
         if (req.getAddress() != null) user.setAddress(req.getAddress());
+        if (req.getProfilePictureUrl() != null) user.setProfilePictureUrl(req.getProfilePictureUrl());
         
         return userRepository.save(user);
     }

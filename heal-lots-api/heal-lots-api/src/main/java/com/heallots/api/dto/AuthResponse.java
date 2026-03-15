@@ -21,7 +21,9 @@ public class AuthResponse {
         private String birthday;
         private String gender;
         private String address;
+        private String profilePictureUrl;
         private String role;
+        private String createdAt;
 
         public static UserDto fromUser(User user) {
             UserDto dto = new UserDto();
@@ -32,7 +34,9 @@ public class AuthResponse {
             dto.setBirthday(user.getBirthday());
             dto.setGender(user.getGender());
             dto.setAddress(user.getAddress());
+            dto.setProfilePictureUrl(user.getProfilePictureUrl());
             dto.setRole(user.getRole() != null ? user.getRole() : "USER");
+            dto.setCreatedAt(user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
             return dto;
         }
     }

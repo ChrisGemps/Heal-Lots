@@ -10,12 +10,15 @@ export default function Profile({ setIsLoggedIn }) {
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Patient';
 
+  // Generate user-specific key for photo storage
+  const getPhotoKey = () => user?.email ? `userPhoto_${user.email}` : 'userPhoto';
+
   const [editing, setEditing] = useState(false);
   const [saving,  setSaving]  = useState(false);
   const [success, setSuccess] = useState(false);
   const [error,   setError]   = useState('');
 
-  const [photo, setPhoto] = useState(() => localStorage.getItem('userPhoto') || null);
+  const [photo, setPhoto] = useState(() => user?.profilePictureUrl || localStorage.getItem(getPhotoKey()) || null);
   const [photoError, setPhotoError] = useState('');
 
   const [pwForm, setPwForm] = useState({ current: '', newPass: '', confirm: '' });
@@ -83,14 +86,14 @@ export default function Profile({ setIsLoggedIn }) {
     reader.onload = (ev) => {
       const dataUrl = ev.target.result;
       setPhoto(dataUrl);
-      localStorage.setItem('userPhoto', dataUrl);
+      localStorage.setItem(getPhotoKey(), dataUrl);
     };
     reader.readAsDataURL(file);
   };
 
   const handleRemovePhoto = () => {
     setPhoto(null);
-    localStorage.removeItem('userPhoto');
+    localStorage.removeItem(getPhotoKey());
   };
 
   const [form, setForm] = useState({
@@ -110,11 +113,17 @@ export default function Profile({ setIsLoggedIn }) {
     setSuccess(false);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.put('http://localhost:8080/api/user/profile', form, {
+      const dataToSend = {
+        ...form,
+        profilePictureUrl: photo,
+      };
+      const res = await axios.put('http://localhost:8080/api/user/profile', dataToSend, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const updated = { ...user, ...form };
+      const updated = { ...user, ...form, profilePictureUrl: res.data.profilePictureUrl };
       localStorage.setItem('user', JSON.stringify(updated));
+      localStorage.setItem(getPhotoKey(), res.data.profilePictureUrl || photo);
+      setPhoto(res.data.profilePictureUrl || photo);
       setSuccess(true);
       setEditing(false);
       setTimeout(() => setSuccess(false), 3000);
@@ -130,6 +139,7 @@ export default function Profile({ setIsLoggedIn }) {
     localStorage.removeItem('user');
     if (setIsLoggedIn) setIsLoggedIn(false);
     navigate('/', { replace: true });
+    window.location.reload();
   };
 
   const formatBirthday = (val) => {
@@ -617,7 +627,7 @@ export default function Profile({ setIsLoggedIn }) {
                 )}
               </div>
               {photoError && <div className="pf-photo-error">⚠️ {photoError}</div>}
-              {!photoError && <div className="pf-photo-hint">JPG, PNG · Max 3MB · Click avatar to change</div>}
+              {!photoError && <div className="pf-photo-hint"></div>}
               <div className="pf-hero-meta" style={{marginTop:'10px'}}>
                 {form.email    && <span className="pf-hero-chip">Email: {form.email}</span>}
                 {age           && <span className="pf-hero-chip">Age: {age} yrs old</span>}
@@ -756,7 +766,7 @@ export default function Profile({ setIsLoggedIn }) {
                     <div className="pf-value" style={{ letterSpacing: '3px', fontSize: '18px' }}>••••••••</div>
                   </div>
                   <div style={{ fontSize: '12px', color: '#a8956b', marginTop: '4px', fontWeight: 300 }}>
-                    Last changed: unknown
+                    Last changed: 1 days ago
                   </div>
                 </div>
                 <button className="pf-edit-btn" style={{ flexShrink: 0 }}

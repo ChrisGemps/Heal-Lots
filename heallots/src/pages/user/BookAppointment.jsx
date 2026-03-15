@@ -1,24 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import axios from 'axios';
 
 const SERVICES = [
-  { id: 1, name: 'Traditional Hilot',   specialist: 'Manang Rosa',    emoji: '🤲', tag: 'Most Popular', rating: 4.9, reviews: 214 },
+  { id: 1, name: 'Traditional Hilot',   specialist: 'Manang Rosa',    emoji: '🤲🏻', tag: 'Most Popular', rating: 4.9, reviews: 214 },
   { id: 2, name: 'Herbal Compress',     specialist: 'Mang Berting',   emoji: '🌿', tag: 'Best for Pain', rating: 4.8, reviews: 178 },
-  { id: 3, name: 'Head & Neck Relief',  specialist: 'Ate Cora',       emoji: '💆', tag: 'Stress Relief',  rating: 4.9, reviews: 193 },
-  { id: 4, name: 'Foot Reflexology',    specialist: 'Manang Lourdes', emoji: '🦶', tag: 'Walk-in',        rating: 4.7, reviews: 152 },
-  { id: 5, name: 'Hot Oil Massage',     specialist: 'Mang Totoy',     emoji: '🛢️', tag: 'New',            rating: 4.8, reviews: 89  },
-  { id: 6, name: 'Whole-Body Hilot',    specialist: 'Ate Nena',       emoji: '🧘', tag: 'Premium',        rating: 5.0, reviews: 301 },
+  { id: 3, name: 'Head & Neck Relief',  specialist: 'Ate Cora',       emoji: '💆🏻‍♀️', tag: 'Stress Relief',  rating: 4.9, reviews: 193 },
+  { id: 4, name: 'Foot Reflexology',    specialist: 'Manang Lourdes', emoji: '🦶🏼', tag: 'Walk-in',        rating: 4.7, reviews: 152 },
+  { id: 5, name: 'Hot Oil Massage',     specialist: 'Mang Totoy',     emoji: '🫙', tag: 'New',            rating: 4.8, reviews: 89  },
+  { id: 6, name: 'Whole-Body Hilot',    specialist: 'Ate Nena',       emoji: '🧘🏻', tag: 'Premium',        rating: 5.0, reviews: 301 },
 ];
 
-const TIME_SLOTS = ['9:00 AM', '10:00 AM', '11:00 AM', '2:00 PM', '3:00 PM', '4:00 PM'];
+const TIME_SLOTS = ['8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'];
+const MORNING_SLOTS = ['8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM'];
+const AFTERNOON_SLOTS = ['1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'];
+const LUNCH_BREAK = '12:00 PM';
 
 const REASONS = [
-  'Body pain / muscle aches',
-  'Stress & fatigue relief',
-  'Post-injury recovery',
-  'Regular wellness session',
-  'Sleep improvement',
-  'Headache / migraine',
+  'Body Pain / Muscle Aches',
+  'Stress & Fatigue Relief',
+  'Post-injury Recovery',
+  'Regular Wellness Session',
+  'Sleep Improvement',
+  'Headache / Migraine',
   'Other',
 ];
 
@@ -31,7 +35,7 @@ function getFirstDayOfMonth(year, month) {
 }
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const DAY_NAMES   = ['S','M','T','W','T','F','S'];
+const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 export default function BookAppointment({ setIsLoggedIn }) {
   const navigate = useNavigate();
@@ -50,6 +54,7 @@ export default function BookAppointment({ setIsLoggedIn }) {
   const [reason,      setReason]      = useState('');
   const [notes,       setNotes]       = useState('');
   const [submitted,   setSubmitted]   = useState(false);
+  const [bookedSlots, setBookedSlots] = useState([]);
 
   const daysInMonth  = getDaysInMonth(calYear, calMonth);
   const firstDay     = getFirstDayOfMonth(calYear, calMonth);
@@ -57,9 +62,48 @@ export default function BookAppointment({ setIsLoggedIn }) {
     ? `${MONTH_NAMES[calMonth]} ${selectedDay}, ${calYear}`
     : null;
 
+  // Pre-select service if navigated from Home with a service title
+  useEffect(() => {
+    const preselect = location.state?.preselect;
+    if (preselect) {
+      const match = SERVICES.find(s => s.name === preselect);
+      if (match) setService(match);
+    }
+  }, [location.state]);
+
+  // Fetch approved appointments to check availability
+  useEffect(() => {
+    const fetchApprovedAppointments = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get('http://localhost:8080/api/appointments/all', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        // Filter only approved appointments
+        const approved = response.data.filter(appt => appt.status === 'Approved');
+        setBookedSlots(approved);
+      } catch (err) {
+        console.error('Error fetching appointments:', err);
+      }
+    };
+    
+    fetchApprovedAppointments();
+  }, []);
+
   const canProceedStep1 = !!service;
   const canProceedStep2 = !!selectedDay && !!timeSlot;
   const canSubmit       = !!reason;
+
+  // Check if a time slot is booked for the selected specialist on the selected date
+  const isSlotBooked = (slot) => {
+    if (!service || !selectedDate) return false;
+    return bookedSlots.some(appt => 
+      appt.specialistName === service.specialist && 
+      appt.appointmentDate === selectedDate && 
+      appt.timeSlot === slot
+    );
+  };
 
   const prevMonth = () => {
     if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); }
@@ -72,9 +116,28 @@ export default function BookAppointment({ setIsLoggedIn }) {
     setSelectedDay(null); setTimeSlot('');
   };
 
-  const handleSubmit = () => {
-    // TODO: POST to backend
-    setSubmitted(true);
+  const handleSubmit = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const appointmentData = {
+        serviceName: service.name,
+        specialistName: service.specialist,
+        appointmentDate: selectedDate,
+        timeSlot: timeSlot,
+        reason: reason,
+        notes: notes,
+      };
+      
+      const response = await axios.post('http://localhost:8080/api/appointments/book', appointmentData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      console.log('Appointment booked:', response.data);
+      setSubmitted(true);
+    } catch (err) {
+      console.error('Error booking appointment:', err.response?.data || err.message);
+      // You could set an error state here to display to the user
+    }
   };
 
   const handleLogout = () => {
@@ -85,36 +148,7 @@ export default function BookAppointment({ setIsLoggedIn }) {
   };
 
   const displayName = user?.fullName || user?.name || 'Patient';
-  const photo = user?.photo || user?.profilePicture || '';
-
-  if (submitted) {
-    return (
-      <>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,700;0,900;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
-          .ba-wrap { min-height: 100vh; background: #fafaf8; font-family: 'DM Sans', sans-serif; display: flex; flex-direction: column; }
-        `}</style>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
-          <div style={{ textAlign: 'center', maxWidth: 480 }}>
-            <div style={{ fontSize: 64, marginBottom: 20 }}>🤲</div>
-            <h2 style={{ fontFamily: 'Fraunces, serif', fontSize: 32, color: '#1c1408', marginBottom: 12 }}>
-              Session Booked!
-            </h2>
-            <p style={{ color: '#78716c', fontSize: 16, lineHeight: 1.7, marginBottom: 8 }}>
-              Your <strong>{service?.name}</strong> with <strong>{service?.specialist}</strong> is confirmed for
-            </p>
-            <p style={{ color: '#d97706', fontWeight: 700, fontSize: 18, marginBottom: 32 }}>
-              {selectedDate} at {timeSlot}
-            </p>
-            <button onClick={() => navigate('/dashboard')}
-              style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: '#fff', border: 'none', borderRadius: 12, padding: '13px 32px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-              Back to Dashboard
-            </button>
-          </div>
-        </div>
-      </>
-    );
-  }
+  const photo = user?.profilePictureUrl || localStorage.getItem(user?.email ? `userPhoto_${user.email}` : 'userPhoto') || null;
 
   return (
     <>
@@ -321,8 +355,15 @@ export default function BookAppointment({ setIsLoggedIn }) {
           cursor: pointer; transition: all 0.15s; color: #44291a; background: #fff;
         }
 
-        .ba-slot:hover { border-color: #d97706; background: #fef3c7; color: #b45309; }
+        .ba-slot:hover:not(.disabled) { border-color: #d97706; background: #fef3c7; color: #b45309; }
         .ba-slot.selected { background: linear-gradient(135deg,#d97706,#b45309); border-color: #d97706; color: #fff; font-weight: 600; box-shadow: 0 3px 10px rgba(217,119,6,0.3); }
+        .ba-slot.disabled { 
+          background: #f5f5f5; 
+          border-color: #d4c5b0; 
+          color: #a8956b; 
+          cursor: not-allowed; 
+          opacity: 0.6;
+        }
 
         /* ── REASON ── */
         .ba-select {
@@ -380,6 +421,57 @@ export default function BookAppointment({ setIsLoggedIn }) {
         }
         .ba-btn-next:hover:not(:disabled) { background: linear-gradient(135deg,#f59e0b,#d97706); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(217,119,6,0.45); }
         .ba-btn-next:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* ── SUCCESS MODAL ── */
+        .ba-modal-overlay {
+          position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(3px);
+          display: flex; align-items: center; justify-content: center;
+          z-index: 1000; padding: 20px;
+        }
+
+        .ba-modal {
+          background: #fff; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+          max-width: 480px; width: 100%; padding: 40px; text-align: center;
+          animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .ba-modal-icon { font-size: 64px; margin-bottom: 24px; }
+
+        .ba-modal-title {
+          font-family: 'Fraunces', serif; font-size: 32px; font-weight: 900;
+          color: #1c1408; margin-bottom: 16px;
+        }
+
+        .ba-modal-text {
+          font-size: 16px; color: #78716c; line-height: 1.7;
+          margin-bottom: 8px;
+        }
+
+        .ba-modal-highlight {
+          font-size: 18px; color: #d97706; font-weight: 700;
+          margin: 24px 0 32px;
+        }
+
+        .ba-modal-button {
+          background: linear-gradient(135deg,#d97706,#b45309); color: #fff;
+          border: none; border-radius: 12px; padding: '13px 32px';
+          font-size: 15px; font-weight: 600; cursor: pointer;
+          font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+          box-shadow: 0 4px 14px rgba(217,119,6,0.35);
+          padding: 13px 32px;
+        }
+
+        .ba-modal-button:hover {
+          background: linear-gradient(135deg,#f59e0b,#d97706);
+          transform: translateY(-1px);
+          box-shadow: 0 6px 20px rgba(217,119,6,0.45);
+        }
 
         @media (max-width: 640px) {
           .ba-service-grid { grid-template-columns: 1fr; }
@@ -488,13 +580,15 @@ export default function BookAppointment({ setIsLoggedIn }) {
                       <div key={`e${i}`} className="ba-cal-day empty" />
                     ))}
                     {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                      const dayOfWeek = (firstDay + day - 1) % 7;
+                      const isSunday = dayOfWeek === 0;
                       const isPast = new Date(calYear, calMonth, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
                       const isToday = day === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear();
                       return (
                         <div
                           key={day}
-                          className={`ba-cal-day${isPast ? ' past' : ''}${isToday ? ' today' : ''}${selectedDay === day ? ' selected' : ''}`}
-                          onClick={() => { if (!isPast) { setSelectedDay(day); setTimeSlot(''); } }}
+                          className={`ba-cal-day${isPast ? ' past' : ''}${isSunday ? ' past' : ''}${isToday ? ' today' : ''}${selectedDay === day ? ' selected' : ''}`}
+                          onClick={() => { if (!isPast && !isSunday) { setSelectedDay(day); setTimeSlot(''); } }}
                         >
                           {day}
                         </div>
@@ -505,17 +599,48 @@ export default function BookAppointment({ setIsLoggedIn }) {
 
                 {/* Time Slots */}
                 <div>
-                  <div className="ba-slots-label">Available Time Slots</div>
-                  <div className="ba-slots-grid">
-                    {TIME_SLOTS.map(t => (
-                      <div
-                        key={t}
-                        className={`ba-slot${timeSlot === t ? ' selected' : ''}`}
-                        onClick={() => setTimeSlot(t)}
-                      >
-                        {t}
+                  <div className="ba-slots-label">Select Time</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    {/* Morning Slots */}
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#a8956b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Morning</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                        {MORNING_SLOTS.map(t => {
+                          const isBooked = isSlotBooked(t);
+                          const isLunchBreak = t === LUNCH_BREAK;
+                          return (
+                            <div
+                              key={t}
+                              className={`ba-slot${timeSlot === t ? ' selected' : ''}${isBooked || isLunchBreak ? ' disabled' : ''}`}
+                              onClick={() => !isBooked && !isLunchBreak && setTimeSlot(t)}
+                              title={isLunchBreak ? 'Lunch break' : isBooked ? 'This slot is unavailable' : ''}
+                            >
+                              {t}
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
+                    </div>
+
+                    {/* Afternoon Slots */}
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#a8956b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Afternoon</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                        {AFTERNOON_SLOTS.map(t => {
+                          const isBooked = isSlotBooked(t);
+                          return (
+                            <div
+                              key={t}
+                              className={`ba-slot${timeSlot === t ? ' selected' : ''}${isBooked ? ' disabled' : ''}`}
+                              onClick={() => !isBooked && setTimeSlot(t)}
+                              title={isBooked ? 'This slot is unavailable' : ''}
+                            >
+                              {t}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -575,6 +700,26 @@ export default function BookAppointment({ setIsLoggedIn }) {
           </div>
         </div>
       </div>
+
+      {/* ── SUCCESS MODAL ── */}
+      {submitted && (
+        <div className="ba-modal-overlay">
+          <div className="ba-modal">
+            <div className="ba-modal-icon">📋✔️</div>
+            <h2 className="ba-modal-title">Session Booked!</h2>
+            <p className="ba-modal-text">
+              Your <strong>{service?.name}</strong> with <strong>{service?.specialist}</strong> is submitted for
+            </p>
+            <div className="ba-modal-highlight">
+              {selectedDate} at {timeSlot}. 
+            </div>
+            <h2>Please wait for the confirmation of the clinic.</h2><br></br>
+            <div><button className="ba-modal-button" onClick={() => navigate('/dashboard')}>
+              Back to Dashboard
+            </button></div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

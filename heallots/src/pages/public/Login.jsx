@@ -19,8 +19,9 @@ function Login({ setIsLoggedIn, setIsAdmin }) {
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
       setIsLoggedIn(true);
-      setIsAdmin(res.data.user?.role === 'ADMIN');
-      navigate('/dashboard');
+      const isAdmin = res.data.user?.role === 'ADMIN';
+      setIsAdmin(isAdmin);
+      navigate(isAdmin ? '/admin' : '/dashboard');
     } catch (err) {
       console.error('Login error:', err.response?.status, err.response?.data, err.message);
       if (err.response?.status === 401) setError('Invalid email or password.');

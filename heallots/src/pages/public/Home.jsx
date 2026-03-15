@@ -1,25 +1,39 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 
 const services = [
-  { icon: '🤲', title: 'Traditional Hilot',  desc: 'Ancient Filipino healing massage using oils and skilled hands to restore energy flow.', tag: 'Most Popular', color: '#fef3c7', accent: '#d97706' },
+  { icon: '🤲🏻', title: 'Traditional Hilot',  desc: 'Ancient Filipino healing massage using oils and skilled hands to restore energy flow.', tag: 'Most Popular', color: '#fef3c7', accent: '#d97706' },
   { icon: '🌿', title: 'Herbal Compress',    desc: 'Warm herbal bundle massage that soothes sore muscles and relieves tension.',            tag: 'Best for Pain', color: '#dcfce7', accent: '#16a34a' },
-  { icon: '💆', title: 'Head & Neck Relief', desc: 'Focused pressure techniques on the head, neck, and shoulders for deep relaxation.',     tag: 'Stress Relief', color: '#ede9fe', accent: '#7c3aed' },
-  { icon: '🦶', title: 'Foot Reflexology',   desc: 'Traditional pressure-point therapy on the feet to heal the whole body.',               tag: 'Walk-in',       color: '#fce7f3', accent: '#db2777' },
-  { icon: '🛢️', title: 'Hot Oil Massage',    desc: 'Deep-tissue massage with warm coconut or essential oils for full-body relief.',         tag: 'New',           color: '#ffedd5', accent: '#ea580c' },
-  { icon: '🧘', title: 'Whole-Body Hilot',   desc: 'Full-body session combining multiple hilot techniques for total wellness.',             tag: 'Premium',       color: '#e0f2fe', accent: '#0284c7' },
+  { icon: '💆🏻‍♀️', title: 'Head & Neck Relief', desc: 'Focused pressure techniques on the head, neck, and shoulders for deep relaxation.',     tag: 'Stress Relief', color: '#ede9fe', accent: '#7c3aed' },
+  { icon: '🦶🏼', title: 'Foot Reflexology',   desc: 'Traditional pressure-point therapy on the feet to heal the whole body.',               tag: 'Walk-in',       color: '#fce7f3', accent: '#db2777' },
+  { icon: '🫙', title: 'Hot Oil Massage',    desc: 'Deep-tissue massage with warm coconut or essential oils for full-body relief.',         tag: 'New',           color: '#ffedd5', accent: '#ea580c' },
+  { icon: '🧘🏻', title: 'Whole-Body Hilot',   desc: 'Full-body session combining multiple hilot techniques for total wellness.',             tag: 'Premium',       color: '#e0f2fe', accent: '#0284c7' },
 ];
 
 const stats = [
-  { value: '5,000+', label: 'Sessions Done' },
-  { value: '30+',    label: 'Local Specialists' },
+  { value: '2,000+', label: 'Sessions Done' },
+  { value: '6',    label: 'Local Specialists' },
   { value: '100%',   label: 'Traditional Methods' },
   { value: '10+',    label: 'Years of Practice' },
 ];
 
-export default function Home() {
+export default function Home({ isLoggedIn, setIsLoggedIn }) {
   const [hoveredCard, setHoveredCard] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const raw = localStorage.getItem('user');
+  const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
+  const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Patient';
+  const photo = user?.profilePictureUrl || localStorage.getItem(user?.email ? `userPhoto_${user.email}` : 'userPhoto') || null;
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    if (setIsLoggedIn) setIsLoggedIn(false);
+    navigate('/', { replace: true });
+    window.location.reload();
+  };
 
   return (
     <>
@@ -75,6 +89,51 @@ export default function Home() {
         .hl-contact-card h4 { font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #fbbf24; margin-bottom: 8px; }
         .hl-contact-card p { font-family: 'DM Sans', sans-serif; font-size: 15px; color: #e2c98a; line-height: 1.6; font-weight: 400; }
         .hl-contact-card p span { display: block; color: #a8956b; font-size: 13px; margin-top: 2px; }
+
+        /* ── USER TOPBAR (shown when logged in) ── */
+        .hl-user-topbar {
+          background: linear-gradient(135deg, #0f172a 0%, #1c1408 100%);
+          border-bottom: 1px solid rgba(217,119,6,0.2);
+          padding: 0 40px; height: 64px;
+          display: flex; align-items: center; justify-content: space-between;
+          position: sticky; top: 0; z-index: 100;
+        }
+        .hl-user-topbar-brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .hl-user-topbar-logo  { height: 55px; width: auto; filter: brightness(0) invert(1) drop-shadow(0 0 5px rgba(217,119,6,0.5)); }
+        .hl-user-topbar-right { display: flex; align-items: center; gap: 16px; }
+        .hl-user-topbar-nav   { display: flex; align-items: center; gap: 4px; }
+        .hl-user-topbar-nav a {
+          font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+          color: #a8956b; text-decoration: none; padding: 7px 14px;
+          border-radius: 8px; transition: all 0.18s;
+        }
+        .hl-user-topbar-nav a:hover,
+        .hl-user-topbar-nav a.active { color: #fbbf24; background: rgba(217,119,6,0.12); }
+        .hl-user-badge { display: flex; align-items: center; gap: 10px; }
+        .hl-user-avatar {
+          width: 36px; height: 36px;
+          background: linear-gradient(135deg, #d97706, #b45309);
+          border-radius: 50%; display: flex; align-items: center; justify-content: center;
+          font-size: 15px; font-weight: 700; color: #fff;
+          box-shadow: 0 2px 8px rgba(217,119,6,0.4);
+          cursor: pointer; overflow: hidden;
+        }
+        .hl-user-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        .hl-user-info  { line-height: 1.2; }
+        .hl-user-name  { font-size: 14px; font-weight: 600; color: #e2c98a; }
+        .hl-user-role  { font-size: 12px; color: #a8956b; }
+        .hl-user-logout-btn {
+          background: rgba(217,119,6,0.12); border: 1px solid rgba(217,119,6,0.3);
+          color: #fbbf24; border-radius: 8px; padding: 7px 16px;
+          font-size: 13px; font-weight: 600; font-family: 'DM Sans', sans-serif;
+          cursor: pointer; transition: all 0.18s;
+        }
+        .hl-user-logout-btn:hover { background: rgba(217,119,6,0.22); border-color: rgba(217,119,6,0.5); }
+        @media (max-width: 768px) {
+          .hl-user-topbar { padding: 0 20px; }
+          .hl-user-info { display: none; }
+          .hl-user-topbar-nav a { padding: 7px 10px; font-size: 13px; }
+        }
         @media (max-width: 768px) {
           .hl-stats { grid-template-columns: repeat(2, 1fr); }
           .hl-services-grid { grid-template-columns: 1fr; }
@@ -85,6 +144,32 @@ export default function Home() {
         }
       `}</style>
 
+      {/* USER TOPBAR — shown when logged in, replaces public Navbar */}
+      {isLoggedIn && (
+        <div className="hl-user-topbar">
+          <div className="hl-user-topbar-brand" onClick={() => navigate('/dashboard')}>
+            <img src="/logo.png" alt="Heal Lots" className="hl-user-topbar-logo" />
+          </div>
+          <div className="hl-user-topbar-right">
+            <nav className="hl-user-topbar-nav">
+              <Link to="/dashboard"    className={location.pathname === '/dashboard'    ? 'active' : ''}>Dashboard</Link>
+              <Link to="/book"         className={location.pathname === '/book'         ? 'active' : ''}>Book Session</Link>
+              <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
+            </nav>
+            <div className="hl-user-badge">
+              <div className="hl-user-avatar" onClick={() => navigate('/profile')} title="View Profile">
+                {photo ? <img src={photo} alt="Profile" /> : displayName.charAt(0).toUpperCase()}
+              </div>
+              <div className="hl-user-info">
+                <div className="hl-user-name">{displayName}</div>
+                <div className="hl-user-role">Patient</div>
+              </div>
+            </div>
+            <button className="hl-user-logout-btn" onClick={handleLogout}>Sign Out</button>
+          </div>
+        </div>
+      )}
+
       <div className="hl-home">
 
         {/* HERO */}
@@ -93,8 +178,8 @@ export default function Home() {
           <h1>Heal Through the<br />Power of <em>Hilot</em></h1>
           <p>Traditional Filipino massage by skilled local specialists — restoring balance, easing pain, and bringing you back to wellness.</p>
           <div className="hl-hero-btns">
-            <button className="hl-btn-primary" onClick={() => navigate('/book')}>Book a Session</button>
-            <button className="hl-btn-outline" onClick={() => navigate('/appointments')}>My Appointments</button>
+            <button className="hl-btn-primary" onClick={() => navigate(isLoggedIn ? '/book' : '/login')}>Book a Session</button>
+            <button className="hl-btn-outline" onClick={() => navigate(isLoggedIn ? '/appointments' : '/login')}>My Appointments</button>
           </div>
         </section>
 
@@ -109,11 +194,11 @@ export default function Home() {
         </div>
 
         {/* SERVICES — id="services" lets UserDashboard scroll here directly */}
-        <section className="hl-section" >
-          <div className="hl-section-header" >
+        <section className="hl-section">
+          <div className="hl-section-header">
             <div className="hl-section-tag">Our Services</div>
             <h2>What Healing Can<br />We Offer You Today?</h2>
-            <p  id="services">Each session is guided by experienced hilot practitioners using generations-old techniques.</p>
+            <p id="services">Each session is guided by experienced hilot practitioners using generations-old techniques.</p>
           </div>
           <div className="hl-services-grid">
             {services.map((svc, i) => (
@@ -126,7 +211,7 @@ export default function Home() {
                 }}
                 onMouseEnter={() => setHoveredCard(i)}
                 onMouseLeave={() => setHoveredCard(null)}
-                onClick={() => navigate('/book')}
+                onClick={() => navigate(isLoggedIn ? '/book' : '/login', isLoggedIn ? { state: { preselect: svc.title } } : undefined)}
               >
                 <div className="hl-card-icon-wrap" style={{ background: svc.color }}>{svc.icon}</div>
                 <div className="hl-card-tag" style={{ background: svc.color, color: svc.accent }}>{svc.tag}</div>

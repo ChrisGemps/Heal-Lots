@@ -21,7 +21,10 @@ public class AuthController {
             AuthResponse response = authService.register(req);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.status(409).body(new ErrorResponse(e.getMessage()));
+            String message = e.getMessage() != null ? e.getMessage() : "Registration failed. Please try again.";
+            // Return 409 only for duplicate email, 400 for other validation errors
+            int statusCode = message.contains("already exists") ? 409 : 400;
+            return ResponseEntity.status(statusCode).body(new ErrorResponse(message));
         }
     }
 

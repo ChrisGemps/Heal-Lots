@@ -1,29 +1,95 @@
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import axios from 'axios';
 
-export default function UserDashboard() {
+export default function UserDashboard({ setIsLoggedIn }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const raw = localStorage.getItem('user');
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Patient';
-  const photo = localStorage.getItem('userPhoto') || null;
+  const photo = user?.profilePictureUrl || localStorage.getItem(user?.email ? `userPhoto_${user.email}` : 'userPhoto') || null;
 
-  const appointments = [
-    { specialist: 'Manang Rosa', service: 'Traditional Hilot', date: 'Feb 8, 2026', time: '10:00 AM', status: 'Scheduled' },
-    { specialist: 'Mang Berting', service: 'Herbal Compress',  date: 'Feb 9, 2026', time: '2:00 PM',  status: 'Scheduled' },
-  ];
+  // Fetch appointments from backend
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get('http://localhost:8080/api/appointments/user', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        // Transform backend data to match UI format
+        const transformedAppointments = response.data.map(appt => ({
+          id: appt.id,
+          specialist: appt.specialistName,
+          service: appt.serviceName,
+          date: appt.appointmentDate,
+          time: appt.timeSlot,
+          status: appt.status || 'Pending',
+          createdAt: appt.createdAt,
+        }));
+        
+        // Sort by creation date (newest first)
+        transformedAppointments.sort((a, b) => {
+          const dateA = new Date(a.createdAt);
+          const dateB = new Date(b.createdAt);
+          return dateB - dateA;
+        });
+        
+        setAppointments(transformedAppointments);
+      } catch (err) {
+        console.error('Error fetching appointments:', err);
+        // Keep empty array if fetch fails
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAppointments();
+  }, []);
+
+  // Helper function to determine if appointment is upcoming
+  const isUpcoming = (dateString) => {
+    try {
+      const appointmentDate = new Date(dateString);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return appointmentDate >= today;
+    } catch (e) {
+      return true;
+    }
+  };
+
+  // Show only upcoming appointments on dashboard
+  const upcomingAppointments = appointments.filter(a => isUpcoming(a.date)).slice(0, 3);
 
   const statusColors = {
-    Scheduled:  { bg: '#fef3c7', color: '#b45309' },
-    Completed:  { bg: '#dcfce7', color: '#15803d' },
-    Cancelled:  { bg: '#fee2e2', color: '#dc2626' },
+    Pending: { bg: '#fef3c7', color: '#b45309' },
+    Scheduled: { bg: '#fef3c7', color: '#b45309' },
+    Approved: { bg: '#dcfce7', color: '#15803d' },
+    Completed: { bg: '#dcfce7', color: '#15803d' },
+    Cancelled: { bg: '#fee2e2', color: '#dc2626' },
+  };
+
+  const serviceEmoji = {
+    'Traditional Hilot': '🤲🏻',
+    'Herbal Compress': '🌿',
+    'Head & Neck Relief': '💆🏻‍♀️',
+    'Foot Reflexology': '🦶🏼',
+    'Hot Oil Massage': '🫙',
+    'Whole-Body Hilot': '🧘🏻',
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    if (setIsLoggedIn) setIsLoggedIn(false);
     navigate('/', { replace: true });
+    window.location.reload();
   };
 
   return (
@@ -42,106 +108,40 @@ export default function UserDashboard() {
         .ud-topbar {
           background: linear-gradient(135deg, #0f172a 0%, #1c1408 100%);
           border-bottom: 1px solid rgba(217,119,6,0.2);
-          padding: 0 40px;
-          height: 64px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          position: sticky;
-          top: 0;
-          z-index: 50;
+          padding: 0 40px; height: 64px;
+          display: flex; align-items: center; justify-content: space-between;
+          position: sticky; top: 0; z-index: 50;
         }
-
-        .ud-topbar-brand {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          cursor: pointer;
+        .ud-topbar-brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .ud-topbar-logo  { height: 55px; width: auto; filter: brightness(0) invert(1) drop-shadow(0 0 5px rgba(217,119,6,0.5)); }
+        .ud-topbar-right { display: flex; align-items: center; gap: 16px; }
+        .ud-topbar-nav   { display: flex; align-items: center; gap: 4px; }
+        .ud-topbar-nav a {
+          font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+          color: #a8956b; text-decoration: none; padding: 7px 14px;
+          border-radius: 8px; transition: all 0.18s;
         }
-
-        .ud-topbar-logo {
-          height: 55px;
-          width: auto;
-          filter: brightness(0) invert(1) drop-shadow(0 0 5px rgba(217,119,6,0.5));
-        }
-
-        .ud-topbar-right {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .ud-user-badge {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .ud-avatar img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
+        .ud-topbar-nav a:hover,
+        .ud-topbar-nav a.active { color: #fbbf24; background: rgba(217,119,6,0.12); }
+        .ud-user-badge { display: flex; align-items: center; gap: 10px; }
         .ud-avatar {
           width: 36px; height: 36px;
           background: linear-gradient(135deg, #d97706, #b45309);
-          border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 15px;
-          font-weight: 700;
-          color: #fff;
-          box-shadow: 0 2px 8px rgba(217,119,6,0.4);
+          border-radius: 50%; display: flex; align-items: center; justify-content: center;
+          font-size: 15px; font-weight: 700; color: #fff;
+          box-shadow: 0 2px 8px rgba(217,119,6,0.4); overflow: hidden; cursor: pointer;
         }
-
-        .ud-user-info { line-height: 1.2; }
-
-        .ud-user-name {
-          font-size: 14px;
-          font-weight: 600;
-          color: #e2c98a;
-        }
-
-        .ud-user-role {
-          font-size: 12px;
-          color: #a8956b;
-        }
-
-        .ud-topbar-nav {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .ud-topbar-nav a {
-          font-family: 'DM Sans', sans-serif;
-          font-size: 14px;
-          font-weight: 500;
-          color: #a8956b;
-          text-decoration: none;
-          padding: 7px 14px;
-          border-radius: 8px;
-          transition: all 0.18s;
-        }
-
-        .ud-topbar-nav a:hover,
-        .ud-topbar-nav a.active {
-          color: #fbbf24;
-          background: rgba(217,119,6,0.12);
-        }
-
+        .ud-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        .ud-user-info  { line-height: 1.2; }
+        .ud-user-name  { font-size: 14px; font-weight: 600; color: #e2c98a; }
+        .ud-user-role  { font-size: 12px; color: #a8956b; }
         .ud-logout-btn {
-          background: rgba(217,119,6,0.12);
-          border: 1px solid rgba(217,119,6,0.3);
-          color: #fbbf24;
-          border-radius: 8px;
-          padding: 7px 16px;
-          font-size: 13px;
-          font-weight: 600;
-          font-family: 'DM Sans', sans-serif;
-          cursor: pointer;
-          transition: all 0.18s;
+          background: rgba(217,119,6,0.12); border: 1px solid rgba(217,119,6,0.3);
+          color: #fbbf24; border-radius: 8px; padding: 7px 16px;
+          font-size: 13px; font-weight: 600; font-family: 'DM Sans', sans-serif;
+          cursor: pointer; transition: all 0.18s;
         }
-
-        .ud-logout-btn:hover {
-          background: rgba(217,119,6,0.22);
-          border-color: rgba(217,119,6,0.5);
-        }
+        .ud-logout-btn:hover { background: rgba(217,119,6,0.22); border-color: rgba(217,119,6,0.5); }
 
         /* ── MAIN ── */
         .ud-main {
@@ -334,12 +334,12 @@ export default function UserDashboard() {
           </div>
           <div className="ud-topbar-right">
             <nav className="ud-topbar-nav">
-              <Link to="/dashboard" className={location.pathname === '/dashboard' ? 'active' : ''}>Dashboard</Link>
+              <Link to="/dashboard"    className={location.pathname === '/dashboard'    ? 'active' : ''}>Dashboard</Link>
               <Link to="/book"         className={location.pathname === '/book'         ? 'active' : ''}>Book Session</Link>
               <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
             </nav>
             <div className="ud-user-badge">
-              <div className="ud-avatar" onClick={() => navigate('/profile')} title="View Profile" style={{cursor:'pointer'}}>
+              <div className="ud-avatar" onClick={() => navigate('/profile')} title="View Profile">
                 {photo ? <img src={photo} alt="Profile" /> : displayName.charAt(0).toUpperCase()}
               </div>
               <div className="ud-user-info">
@@ -347,9 +347,7 @@ export default function UserDashboard() {
                 <div className="ud-user-role">Patient</div>
               </div>
             </div>
-            <button className="ud-logout-btn" onClick={handleLogout}>
-              Sign Out
-            </button>
+            <button className="ud-logout-btn" onClick={handleLogout}>Sign Out</button>
           </div>
         </div>
 
@@ -390,22 +388,22 @@ export default function UserDashboard() {
 
           {/* UPCOMING APPOINTMENTS */}
           <div className="ud-section-header">
-            <h2>Upcoming Sessions</h2>
+            <h2>Recent Bookings</h2>
             <button className="ud-view-all" onClick={() => navigate('/appointments')}>
-              View all →
+              View All →
             </button>
           </div>
 
           <div className="ud-appt-card">
-            {appointments.length === 0 ? (
+            {upcomingAppointments.length === 0 ? (
               <div className="ud-empty">
                 <div className="ud-empty-icon">🌿</div>
                 <p>No upcoming sessions. Book your first hilot today!</p>
               </div>
             ) : (
-              appointments.map((appt, idx) => (
+              upcomingAppointments.map((appt, idx) => (
                 <div className="ud-appt-row" key={idx}>
-                  <div className="ud-appt-avatar">🤲</div>
+                  <div className="ud-appt-avatar">{serviceEmoji[appt.service] || '🤲🏻'}</div>
                   <div className="ud-appt-info">
                     <div className="ud-appt-specialist">{appt.specialist}</div>
                     <div className="ud-appt-meta">{appt.service} &nbsp;·&nbsp; {appt.date} &nbsp;·&nbsp; {appt.time}</div>

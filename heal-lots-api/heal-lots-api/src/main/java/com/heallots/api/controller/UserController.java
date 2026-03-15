@@ -9,6 +9,9 @@ import com.heallots.api.dto.AuthResponse;
 import com.heallots.api.service.AuthService;
 import com.heallots.api.config.JwtUtil;
 import com.heallots.api.model.User;
+import com.heallots.api.repository.UserRepository;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/user")
@@ -20,6 +23,9 @@ public class UserController {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @PutMapping("/change-password")
     public ResponseEntity<?> changePassword(@RequestHeader("Authorization") String authHeader, @RequestBody ChangePasswordRequest req) {
@@ -45,6 +51,20 @@ public class UserController {
             return ResponseEntity.status(400).body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(new ErrorResponse("Failed to update profile."));
+        }
+    }
+
+    @GetMapping("/all")
+    public ResponseEntity<?> getAllUsers(@RequestHeader("Authorization") String authHeader) {
+        try {
+            extractEmailFromAuthHeader(authHeader); // Verify token is valid
+            List<User> users = userRepository.findAll();
+            List<AuthResponse.UserDto> userDtos = users.stream()
+                    .map(AuthResponse.UserDto::fromUser)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(userDtos);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(new ErrorResponse("Failed to fetch users."));
         }
     }
 

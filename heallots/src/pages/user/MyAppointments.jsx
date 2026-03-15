@@ -1,49 +1,261 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
+import axios from "axios";
+
+// Calendar constants
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MORNING_SLOTS = ['8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM'];
+const AFTERNOON_SLOTS = ['1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'];
+const LUNCH_BREAK = '12:00 PM';
+
+function getDaysInMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function getFirstDayOfMonth(year, month) {
+  return new Date(year, month, 1).getDay();
+}
 
 export default function MyAppointments({ setIsLoggedIn }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [tab, setTab] = useState("upcoming");
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedAppt, setSelectedAppt] = useState(null);
+  const [rescheduleMode, setRescheduleMode] = useState(false);
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [reschedulingDay, setReschedulingDay] = useState(null);
+  const [reschedulingTime, setReschedulingTime] = useState('');
+  const [rescheduleReason, setRescheduleReason] = useState('');
+  const [showConfirmCancel, setShowConfirmCancel] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
 
   const raw = localStorage.getItem('user');
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Patient';
-  const photo = localStorage.getItem('userPhoto') || null;
+  const photo = user?.profilePictureUrl || localStorage.getItem(user?.email ? `userPhoto_${user.email}` : 'userPhoto') || null;
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     if (setIsLoggedIn) setIsLoggedIn(false);
     navigate('/', { replace: true });
+    window.location.reload();
   };
 
-  const upcoming = [
-    { specialist: 'Manang Rosa',    service: 'Traditional Hilot', date: 'Feb 10, 2026', time: '10:00 AM', reason: 'Body pain / muscle aches', status: 'Scheduled'  },
-    { specialist: 'Mang Berting',   service: 'Herbal Compress',   date: 'Feb 14, 2026', time: '2:00 PM',  reason: 'Stress & fatigue relief',  status: 'Scheduled'  },
-    { specialist: 'Ate Cora',       service: 'Head & Neck Relief', date: 'Feb 18, 2026', time: '11:00 AM', reason: 'Headache / migraine',       status: 'Scheduled'  },
-  ];
+  // Returns true if appointment is at least 24 hours away
+  const canModifyAppointment = (dateString, timeString) => {
+    try {
+      // ── Parse time ───────────────────────────────────────────────────
+      const timeRegex = /(\d{1,2}):(\d{2})\s*(AM|PM)/i;
+      const timeMatch = timeString?.match(timeRegex);
+      let hour = 9, minute = 0;
+      if (timeMatch) {
+        hour   = parseInt(timeMatch[1]);
+        minute = parseInt(timeMatch[2]);
+        const meridiem = timeMatch[3].toUpperCase();
+        if (meridiem === 'PM' && hour !== 12) hour += 12;
+        if (meridiem === 'AM' && hour === 12)  hour  = 0;
+      }
 
-  const past = [
-    { specialist: 'Manang Lourdes', service: 'Foot Reflexology',  date: 'Jan 20, 2026', time: '9:00 AM',  reason: 'Regular wellness session',  status: 'Completed'  },
-    { specialist: 'Mang Totoy',     service: 'Hot Oil Massage',   date: 'Jan 5, 2026',  time: '3:00 PM',  reason: 'Post-injury recovery',       status: 'Cancelled'  },
-  ];
+      // ── Parse date ───────────────────────────────────────────────────
+      let year, month, day;
 
-  const list = tab === "upcoming" ? upcoming : past;
+      if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+        // ISO: 2026-03-20  or  2026-03-20T...
+        const parts = dateString.split('T')[0].split('-');
+        year  = parseInt(parts[0]);
+        month = parseInt(parts[1]) - 1; // 0-indexed
+        day   = parseInt(parts[2]);
+      } else {
+        // Human-readable: "March 20, 2026"  or  "Mar 20, 2026"
+        const MONTHS = {
+          january:0,february:1,march:2,april:3,may:4,june:5,
+          july:6,august:7,september:8,october:9,november:10,december:11,
+          jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11
+        };
+        // e.g. "March 20, 2026" -> ["March", "20,", "2026"]
+        const tokens = dateString.replace(',', '').trim().split(/\s+/);
+        month = MONTHS[tokens[0]?.toLowerCase()];
+        day   = parseInt(tokens[1]);
+        year  = parseInt(tokens[2]);
+        if (month === undefined || isNaN(day) || isNaN(year)) return true; // fail open
+      }
+
+      // Build appointment Date object using LOCAL time (no UTC shift)
+      const appointmentDate = new Date(year, month, day, hour, minute, 0, 0);
+      const now = new Date();
+      const hoursLeft = (appointmentDate - now) / (1000 * 60 * 60);
+
+      return hoursLeft >= 24;
+    } catch (e) {
+      console.error('canModifyAppointment error:', e);
+      return true; // fail open — allow modification if parsing fails
+    }
+  };
+
+  const openModal = (appt) => {
+    setSelectedAppt(appt);
+    setModalOpen(true);
+    setRescheduleMode(false);
+    setShowConfirmCancel(false);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setSelectedAppt(null);
+    setRescheduleMode(false);
+    setShowConfirmCancel(false);
+    setReschedulingDay(null);
+    setReschedulingTime('');
+    setRescheduleReason('');
+    setCancelReason('');
+    setCalYear(new Date().getFullYear());
+    setCalMonth(new Date().getMonth());
+  };
+
+  const handleCancelAppointment = async () => {
+    if (!selectedAppt || !selectedAppt.id || !cancelReason.trim()) return;
+
+    const appointmentId = selectedAppt.id;
+
+    // Update UI immediately
+    setAppointments(prev => 
+      prev.map(a => a.id === appointmentId ? { ...a, status: 'Canceled by Patient', cancellationReason: cancelReason } : a)
+    );
+    closeModal();
+    alert('Appointment cancelled successfully');
+
+    // Update backend asynchronously
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `http://localhost:8080/api/appointments/${appointmentId}/status`,
+        { status: 'Canceled by Patient', cancellationReason: cancelReason },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (err) {
+      console.error('Error cancelling appointment:', err);
+      alert('Failed to update appointment on server');
+    }
+  };
+
+  const handleRescheduleAppointment = async () => {
+    if (!selectedAppt || !selectedAppt.id || reschedulingDay === null || !reschedulingTime || !rescheduleReason.trim()) return;
+
+    const appointmentId = selectedAppt.id;
+    const reschedulingDate = `${MONTH_NAMES[calMonth]} ${reschedulingDay}, ${calYear}`;
+
+    // Update UI immediately
+    setAppointments(prev =>
+      prev.map(a => a.id === appointmentId 
+        ? { ...a, date: reschedulingDate, time: reschedulingTime, status: 'Rescheduled by Patient', rescheduleReason: rescheduleReason } 
+        : a
+      )
+    );
+    closeModal();
+    alert('                      Appointment Rescheduled Successfully.\n                     Please Wait For the Approval of the Clinic');
+
+    // Update backend asynchronously
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `http://localhost:8080/api/appointments/${appointmentId}`,
+        { 
+          appointmentDate: reschedulingDate,
+          timeSlot: reschedulingTime,
+          rescheduleReason: rescheduleReason,
+          status: 'Rescheduled by Patient'
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (err) {
+      console.error('Error rescheduling appointment:', err);
+      alert('Failed to update appointment on server');
+    }
+  };
+
+  // Fetch appointments from backend
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get('http://localhost:8080/api/appointments/user', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        // Transform backend data to match UI format
+        const transformedAppointments = response.data.map(appt => ({
+          id: appt.id,
+          specialist: appt.specialistName,
+          service: appt.serviceName,
+          date: appt.appointmentDate,
+          time: appt.timeSlot,
+          reason: appt.reason || 'N/A',
+          status: appt.status || 'Pending',
+          notes: appt.notes || '',
+          rescheduleReason: appt.rescheduleReason || '',
+          cancellationReason: appt.cancellationReason || '',
+        }));
+        
+        // Sort appointments by date (closest upcoming date first)
+        transformedAppointments.sort((a, b) => {
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+          return dateA - dateB;
+        });
+        
+        setAppointments(transformedAppointments);
+      } catch (err) {
+        console.error('Error fetching appointments:', err);
+        // Keep empty array if fetch fails
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAppointments();
+  }, []);
+
+  // Helper function to parse date string and determine if it's upcoming or past
+  const isUpcoming = (dateString) => {
+    try {
+      const appointmentDate = new Date(dateString);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return appointmentDate >= today;
+    } catch (e) {
+      return true; // Default to upcoming if parsing fails
+    }
+  };
+
+  const upcoming = appointments.filter(a => a.status !== 'Cancelled' && isUpcoming(a.date));
+  const past = appointments.filter(a => a.status !== 'Cancelled' && !isUpcoming(a.date));
+  const cancelled = appointments.filter(a => a.status === 'Cancelled');
+
+  const list = tab === "upcoming" ? upcoming : tab === "past" ? past : cancelled;
 
   const statusStyle = {
+    Pending: { bg: '#fef3c7', color: '#b45309',  dot: '#d97706' },
     Scheduled: { bg: '#fef3c7', color: '#b45309',  dot: '#d97706' },
+    Approved: { bg: '#dcfce7', color: '#15803d',  dot: '#22c55e' },
     Completed: { bg: '#dcfce7', color: '#15803d',  dot: '#22c55e' },
     Cancelled: { bg: '#fee2e2', color: '#dc2626',  dot: '#ef4444' },
+    'Rescheduled by Patient': { bg: '#e0e7ff', color: '#4f46e5',  dot: '#6366f1' },
+    'Canceled by Patient': { bg: '#fee2e2', color: '#dc2626',  dot: '#ef4444' },
   };
 
   const serviceEmoji = {
-    'Traditional Hilot':  '🤲',
+    'Traditional Hilot':  '🤲🏻',
     'Herbal Compress':    '🌿',
-    'Head & Neck Relief': '💆',
-    'Foot Reflexology':   '🦶',
-    'Hot Oil Massage':    '🛢️',
-    'Whole-Body Hilot':   '🧘',
+    'Head & Neck Relief': '💆🏻‍♀️',
+    'Foot Reflexology':   '🦶🏼',
+    'Hot Oil Massage':    '🫙',
+    'Whole-Body Hilot':   '🧘🏻',
   };
 
   return (
@@ -335,7 +547,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
             </div>
             <div className="ma-stat-pill">
               <span className="dot" style={{ background: '#ef4444' }} />
-              <strong>{past.filter(a => a.status === 'Cancelled').length}</strong> Cancelled
+              <strong>{cancelled.length}</strong> Cancelled
             </div>
           </div>
 
@@ -347,6 +559,9 @@ export default function MyAppointments({ setIsLoggedIn }) {
             <button className={`ma-tab ${tab === 'past' ? 'active' : ''}`} onClick={() => setTab('past')}>
               Past <span className="ma-tab-count">{past.length}</span>
             </button>
+            <button className={`ma-tab ${tab === 'cancelled' ? 'active' : ''}`} onClick={() => setTab('cancelled')}>
+              Cancelled <span className="ma-tab-count">{cancelled.length}</span>
+            </button>
           </div>
 
           {/* CARDS */}
@@ -354,14 +569,14 @@ export default function MyAppointments({ setIsLoggedIn }) {
             <div className="ma-empty">
               <div className="ma-empty-icon">🌿</div>
               <h3>No {tab} appointments</h3>
-              <p>{tab === 'upcoming' ? 'Book your first hilot session today.' : 'Your completed sessions will appear here.'}</p>
+              <p>{tab === 'upcoming' ? 'Book your first hilot session today.' : tab === 'past' ? 'Your completed sessions will appear here.' : 'No cancelled appointments.'}</p>
               {tab === 'upcoming' && (
                 <button className="ma-empty-btn" onClick={() => navigate('/book')}>Book a Session</button>
               )}
             </div>
           ) : (
             list.map((a, i) => {
-              const st = statusStyle[a.status] || statusStyle.Scheduled;
+              const st = statusStyle[a.status] || statusStyle.Pending;
               return (
                 <div key={i} className="ma-card">
                   <div className="ma-card-accent" style={{ background: st.dot }} />
@@ -369,7 +584,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
                   <div className="ma-card-top">
                     <div className="ma-card-left">
                       <div className="ma-service-icon">
-                        {serviceEmoji[a.service] || '🤲'}
+                        {serviceEmoji[a.service] || '🤲🏻'}
                       </div>
                       <div>
                         <div className="ma-service-name">{a.service}</div>
@@ -395,14 +610,50 @@ export default function MyAppointments({ setIsLoggedIn }) {
                   <div className="ma-actions">
                     {tab === 'upcoming' ? (
                       <>
-                        <button className="ma-btn ma-btn-light">🔄 Reschedule</button>
-                        <button className="ma-btn ma-btn-red">✕ Cancel</button>
-                        <button className="ma-btn ma-btn-dark">View Details →</button>
+                        <button 
+                          className="ma-btn ma-btn-dark" 
+                          onClick={() => openModal(a)}
+                        >
+                          View Details →
+                        </button>
+                        <button 
+                          className="ma-btn ma-btn-light" 
+                          onClick={() => {
+                            if (!canModifyAppointment(a.date, a.time)) {
+                              alert('Appointments can only be rescheduled at least 24 hours before the scheduled time. Please contact the clinic if you need to make changes within 24 hours of your appointment.');
+                            } else {
+                              setSelectedAppt(a);
+                              setRescheduleMode(true);
+                              setModalOpen(true);
+                            }
+                          }}
+                        >
+                          🔄 Reschedule
+                        </button>
+                        <button 
+                          className="ma-btn ma-btn-red"
+                          onClick={() => {
+                            if (!canModifyAppointment(a.date, a.time)) {
+                              alert('Appointments can only be canceled at least 24 hours before the scheduled time. Please contact the clinic if you need to cancel within 24 hours of your appointment.');
+                            } else {
+                              setSelectedAppt(a);
+                              setShowConfirmCancel(true);
+                              setModalOpen(true);
+                            }
+                          }}
+                        >
+                          ✕ Cancel Appointment
+                        </button>
+                      </>
+                    ) : tab === 'past' ? (
+                      <>
+                        <button className="ma-btn ma-btn-light" onClick={() => openModal(a)}>📄 View Summary</button>
+                        <button className="ma-btn ma-btn-dark" onClick={() => navigate('/book')}>Book Follow-up →</button>
                       </>
                     ) : (
                       <>
-                        <button className="ma-btn ma-btn-light">📄 View Summary</button>
-                        <button className="ma-btn ma-btn-dark" onClick={() => navigate('/book')}>Book Follow-up →</button>
+                        <button className="ma-btn ma-btn-light" onClick={() => openModal(a)}>📄 View Details</button>
+                        <button className="ma-btn ma-btn-dark" onClick={() => navigate('/book')}>Rebook →</button>
                       </>
                     )}
                   </div>
@@ -412,6 +663,415 @@ export default function MyAppointments({ setIsLoggedIn }) {
           )}
 
         </div>
+
+        {/* MODAL */}
+        {modalOpen && selectedAppt && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', zIndex: 1000
+          }}>
+            <div style={{
+              background: '#fff', borderRadius: '18px', padding: '32px',
+              maxWidth: '800px', width: '90%', maxHeight: '90vh', overflowY: 'auto',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+            }}>
+              {!rescheduleMode && !showConfirmCancel ? (
+                <>
+                  <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 700, marginBottom: '20px', color: '#1c1408' }}>
+                    Appointment Details
+                  </h2>
+                  
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Service</label>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#1c1408' }}>{selectedAppt.service}</div>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Specialist</label>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#1c1408' }}>{selectedAppt.specialist}</div>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Date</label>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#1c1408' }}>{selectedAppt.date}</div>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Time</label>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#1c1408' }}>{selectedAppt.time}</div>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Status</label>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#1c1408' }}>{selectedAppt.status}</div>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Patient Name</label>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#1c1408' }}>{displayName}</div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: '16px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Reason</label>
+                      <div style={{ fontSize: '14px', color: '#1c1408' }}>{selectedAppt.reason}</div>
+                    </div>
+                    {selectedAppt.notes && (
+                      <div style={{ marginTop: '16px' }}>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Additional Notes</label>
+                        <div style={{ fontSize: '14px', color: '#1c1408', lineHeight: '1.5', wordBreak: 'break-word' }}>
+                          {selectedAppt.notes}
+                        </div>
+                      </div>
+                    )}
+                    {selectedAppt.rescheduleReason && (
+                      <div style={{ marginTop: '16px' }}>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Reschedule Reason</label>
+                        <div style={{ fontSize: '14px', color: '#1c1408', lineHeight: '1.5', wordBreak: 'break-word', background: '#e0e7ff', padding: '12px', borderRadius: '8px' }}>
+                          {selectedAppt.rescheduleReason}
+                        </div>
+                      </div>
+                    )}
+                    {selectedAppt.cancellationReason && (
+                      <div style={{ marginTop: '16px' }}>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Cancellation Reason</label>
+                        <div style={{ fontSize: '14px', color: '#1c1408', lineHeight: '1.5', wordBreak: 'break-word', background: '#fee2e2', padding: '12px', borderRadius: '8px' }}>
+                          {selectedAppt.cancellationReason}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {tab === 'upcoming' && (
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+                      <button
+                        onClick={() => {
+                          if (!canModifyAppointment(selectedAppt.date, selectedAppt.time)) {
+                            alert('Appointments can only be rescheduled at least 24 hours before the scheduled time. Please contact the clinic if you need to make changes within 24 hours of your appointment.');
+                          } else {
+                            setRescheduleMode(true);
+                          }
+                        }}
+                        style={{
+                          flex: 1, padding: '11px 12px', borderRadius: '10px', fontWeight: 600,
+                          border: '1.5px solid #e8ddd0', background: '#fff', color: '#44291a',
+                          cursor: 'pointer', fontSize: '13px', fontFamily: "'DM Sans', sans-serif",
+                          transition: 'all 0.18s'
+                        }}
+                      >
+                        🔄 Reschedule
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!canModifyAppointment(selectedAppt.date, selectedAppt.time)) {
+                            alert('Appointments can only be canceled at least 24 hours before the scheduled time. Please contact the clinic if you need to cancel within 24 hours of your appointment.');
+                          } else {
+                            setShowConfirmCancel(true);
+                          }
+                        }}
+                        style={{
+                          flex: 1, padding: '11px 12px', borderRadius: '10px', fontWeight: 600,
+                          border: '1.5px solid #fecaca', background: '#fff', color: '#dc2626',
+                          cursor: 'pointer', fontSize: '13px', fontFamily: "'DM Sans', sans-serif",
+                          transition: 'all 0.18s'
+                        }}
+                      >
+                        ✕ Cancel Appointment
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={closeModal}
+                    style={{
+                      width: '100%', padding: '11px 12px', marginTop: '12px', borderRadius: '10px',
+                      border: '1.5px solid #e8ddd0', background: '#fff', color: '#44291a',
+                      cursor: 'pointer', fontSize: '13px', fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+                      transition: 'all 0.18s'
+                    }}
+                  >
+                    Close
+                  </button>
+                </>
+              ) : rescheduleMode ? (
+                <>
+                  <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 700, marginBottom: '24px', color: '#1c1408' }}>
+                    Reschedule Appointment
+                  </h2>
+                  
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                      Reason for Rescheduling *
+                    </label>
+                    <textarea
+                      value={rescheduleReason}
+                      onChange={(e) => setRescheduleReason(e.target.value)}
+                      placeholder="Please provide a reason for rescheduling..."
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: '1.5px solid #e8ddd0',
+                        borderRadius: '10px',
+                        fontSize: '13px',
+                        fontFamily: "'DM Sans', sans-serif",
+                        color: '#1c1408',
+                        outline: 'none',
+                        resize: 'vertical',
+                        minHeight: '80px',
+                        transition: 'border-color 0.18s'
+                      }}
+                    />
+                    <div style={{ fontSize: '11px', color: '#a8956b', marginTop: '6px' }}>
+                      {rescheduleReason.length}/200 characters
+                    </div>
+                  </div>
+
+                  <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#1c1408', marginBottom: '16px', marginTop: '20px' }}>Select New Date & Time</h3>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+                    {/* Calendar */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                        <button
+                          onClick={() => {
+                            if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); }
+                            else setCalMonth(m => m - 1);
+                            setReschedulingDay(null); setReschedulingTime('');
+                          }}
+                          style={{ background: 'none', border: '1px solid #e8ddd0', borderRadius: '8px', width: '30px', height: '30px', cursor: 'pointer', fontSize: '14px', color: '#78716c', transition: 'all 0.15s' }}
+                        >
+                          ←
+                        </button>
+                        <div style={{ fontSize: '15px', fontWeight: '600', color: '#1c1408' }}>{MONTH_NAMES[calMonth]} {calYear}</div>
+                        <button
+                          onClick={() => {
+                            if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0); }
+                            else setCalMonth(m => m + 1);
+                            setReschedulingDay(null); setReschedulingTime('');
+                          }}
+                          style={{ background: 'none', border: '1px solid #e8ddd0', borderRadius: '8px', width: '30px', height: '30px', cursor: 'pointer', fontSize: '14px', color: '#78716c', transition: 'all 0.15s' }}
+                        >
+                          →
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
+                        {DAY_NAMES.map(d => (
+                          <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: '600', color: '#a8956b', padding: '6px 0', textTransform: 'uppercase' }}>
+                            {d}
+                          </div>
+                        ))}
+                        {Array.from({ length: getFirstDayOfMonth(calYear, calMonth) }).map((_, i) => (
+                          <div key={`e${i}`} />
+                        ))}
+                        {Array.from({ length: getDaysInMonth(calYear, calMonth) }, (_, i) => i + 1).map(day => {
+                          const today = new Date();
+                          const isPast = new Date(calYear, calMonth, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                          const dayOfWeek = (getFirstDayOfMonth(calYear, calMonth) + day - 1) % 7;
+                          const isSunday = dayOfWeek === 0;
+                          return (
+                            <div
+                              key={day}
+                              onClick={() => { if (!isPast && !isSunday) { setReschedulingDay(day); setReschedulingTime(''); } }}
+                              style={{
+                                aspectRatio: '1',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '13px',
+                                borderRadius: '8px',
+                                cursor: isPast || isSunday ? 'not-allowed' : 'pointer',
+                                transition: 'all 0.15s',
+                                background: reschedulingDay === day ? 'linear-gradient(135deg,#d97706,#b45309)' : 'transparent',
+                                color: reschedulingDay === day ? '#fff' : isPast || isSunday ? '#d4c5b0' : '#44291a',
+                                fontWeight: reschedulingDay === day ? '700' : '500',
+                                boxShadow: reschedulingDay === day ? '0 3px 10px rgba(217,119,6,0.35)' : 'none',
+                                border: !isPast && !isSunday && reschedulingDay !== day ? '1.5px solid transparent' : 'none'
+                              }}
+                            >
+                              {day}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Time Slots */}
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px', color: '#a8956b', marginBottom: '12px' }}>
+                        Select Time
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        {/* Morning Slots */}
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: '600', color: '#a8956b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Morning
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                            {MORNING_SLOTS.map(t => {
+                              const isLunchBreak = t === LUNCH_BREAK;
+                              return (
+                                <div
+                                  key={t}
+                                  onClick={() => !isLunchBreak && setReschedulingTime(t)}
+                                  title={isLunchBreak ? 'Lunch break' : ''}
+                                  style={{
+                                    border: '1.5px solid #e8ddd0',
+                                    borderRadius: '10px',
+                                    padding: '10px 8px',
+                                    textAlign: 'center',
+                                    fontSize: '14px',
+                                    fontWeight: reschedulingTime === t ? '600' : '500',
+                                    cursor: isLunchBreak ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.15s',
+                                    color: isLunchBreak ? '#a8956b' : reschedulingTime === t ? '#fff' : '#44291a',
+                                    background: isLunchBreak ? '#f5f5f5' : reschedulingTime === t ? 'linear-gradient(135deg,#d97706,#b45309)' : '#fff',
+                                    borderColor: isLunchBreak ? '#d4c5b0' : reschedulingTime === t ? '#d97706' : '#e8ddd0',
+                                    boxShadow: reschedulingTime === t && !isLunchBreak ? '0 3px 10px rgba(217,119,6,0.3)' : 'none',
+                                    opacity: isLunchBreak ? 0.6 : 1
+                                  }}
+                                >
+                                  {t}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Afternoon Slots */}
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: '600', color: '#a8956b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Afternoon
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                            {AFTERNOON_SLOTS.map(t => (
+                              <div
+                                key={t}
+                                onClick={() => setReschedulingTime(t)}
+                                style={{
+                                  border: '1.5px solid #e8ddd0',
+                                  borderRadius: '10px',
+                                  padding: '10px 8px',
+                                  textAlign: 'center',
+                                  fontSize: '14px',
+                                  fontWeight: reschedulingTime === t ? '600' : '500',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s',
+                                  color: reschedulingTime === t ? '#fff' : '#44291a',
+                                  background: reschedulingTime === t ? 'linear-gradient(135deg,#d97706,#b45309)' : '#fff',
+                                  borderColor: reschedulingTime === t ? '#d97706' : '#e8ddd0',
+                                  boxShadow: reschedulingTime === t ? '0 3px 10px rgba(217,119,6,0.3)' : 'none'
+                                }}
+                              >
+                                {t}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+                    <button
+                      onClick={handleRescheduleAppointment}
+                      disabled={reschedulingDay === null || !reschedulingTime || !rescheduleReason.trim()}
+                      style={{
+                        flex: 1, padding: '11px 12px', borderRadius: '10px', fontWeight: 600,
+                        background: reschedulingDay === null || !reschedulingTime || !rescheduleReason.trim() ? 'rgba(217,119,6,0.3)' : 'linear-gradient(135deg, #0f172a, #1c1408)', 
+                        border: 'none',
+                        color: reschedulingDay === null || !reschedulingTime || !rescheduleReason.trim() ? '#ccc' : '#fbbf24', 
+                        cursor: reschedulingDay === null || !reschedulingTime || !rescheduleReason.trim() ? 'not-allowed' : 'pointer', 
+                        fontSize: '13px',
+                        fontFamily: "'DM Sans', sans-serif", 
+                        transition: 'all 0.18s'
+                      }}
+                    >
+                      ✓ Confirm Reschedule
+                    </button>
+                    <button
+                      onClick={() => setRescheduleMode(false)}
+                      style={{
+                        flex: 1, padding: '11px 12px', borderRadius: '10px', fontWeight: 600,
+                        border: '1.5px solid #e8ddd0', background: '#fff', color: '#44291a',
+                        cursor: 'pointer', fontSize: '13px', fontFamily: "'DM Sans', sans-serif",
+                        transition: 'all 0.18s'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : showConfirmCancel ? (
+                <>
+                  <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 700, marginBottom: '20px', color: '#1c1408' }}>
+                    Cancel Appointment
+                  </h2>
+                  
+                  <p style={{ fontSize: '14px', color: '#78716c', marginBottom: '20px' }}>
+                    Are you sure you want to cancel this appointment? This action cannot be undone.
+                  </p>
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                      Reason for Cancellation *
+                    </label>
+                    <textarea
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      placeholder="Please provide a reason for cancellation..."
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: '1.5px solid #e8ddd0',
+                        borderRadius: '10px',
+                        fontSize: '13px',
+                        fontFamily: "'DM Sans', sans-serif",
+                        color: '#1c1408',
+                        outline: 'none',
+                        resize: 'vertical',
+                        minHeight: '100px',
+                        transition: 'border-color 0.18s'
+                      }}
+                    />
+                    <div style={{ fontSize: '11px', color: '#a8956b', marginTop: '6px' }}>
+                      {cancelReason.length}/200 characters
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+                    <button
+                      onClick={handleCancelAppointment}
+                      disabled={!cancelReason.trim()}
+                      style={{
+                        flex: 1, padding: '11px 12px', borderRadius: '10px', fontWeight: 600,
+                        border: '1.5px solid #fecaca', 
+                        background: !cancelReason.trim() ? '#fee2e2' : '#fff', 
+                        color: '#dc2626',
+                        cursor: !cancelReason.trim() ? 'not-allowed' : 'pointer', 
+                        fontSize: '13px', 
+                        fontFamily: "'DM Sans', sans-serif",
+                        transition: 'all 0.18s',
+                        opacity: !cancelReason.trim() ? 0.5 : 1
+                      }}
+                    >
+                      ✕ Yes, Cancel Appointment
+                    </button>
+                    <button
+                      onClick={() => setShowConfirmCancel(false)}
+                      style={{
+                        flex: 1, padding: '11px 12px', borderRadius: '10px', fontWeight: 600,
+                        border: '1.5px solid #e8ddd0', background: '#fff', color: '#44291a',
+                        cursor: 'pointer', fontSize: '13px', fontFamily: "'DM Sans', sans-serif",
+                        transition: 'all 0.18s'
+                      }}
+                    >
+                      Keep Appointment
+                    </button>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </div>
+        )}
+
       </div>
     </>
   );

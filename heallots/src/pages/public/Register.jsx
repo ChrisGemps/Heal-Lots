@@ -7,13 +7,26 @@ function Register() {
     fullName: '', email: '', password: '', confirmPassword: '',
     phone: '', birthday: '', gender: '', address: '',
   });
-  const [error,       setError]       = useState('');
-  const [loading,     setLoading]     = useState(false);
+  const [error,        setError]        = useState('');
+  const [loading,      setLoading]      = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm,  setShowConfirm]  = useState(false);
   const navigate = useNavigate();
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    if (name === 'phone') {
+      // Strip non-digits, cap at 11 digits
+      const digits = value.replace(/\D/g, '').slice(0, 11);
+      // Auto-format: XXXX XXX XXXX
+      let formatted = digits;
+      if (digits.length > 7)      formatted = digits.slice(0, 4) + ' ' + digits.slice(4, 7) + ' ' + digits.slice(7);
+      else if (digits.length > 4) formatted = digits.slice(0, 4) + ' ' + digits.slice(4);
+      setForm({ ...form, phone: formatted });
+    } else {
+      setForm({ ...form, [name]: value });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,20 +36,26 @@ function Register() {
     setLoading(true);
     try {
       await axios.post('http://localhost:8080/api/auth/register', {
-        fullName:  form.fullName,
-        email:     form.email,
-        password:  form.password,
-        phone:     form.phone,
-        birthday:  form.birthday,
-        gender:    form.gender,
-        address:   form.address,
+        fullName: form.fullName,
+        email:    form.email,
+        password: form.password,
+        phone:    form.phone,
+        birthday: form.birthday,
+        gender:   form.gender,
+        address:  form.address,
       });
       navigate('/login');
     } catch (err) {
       console.error('Registration error:', err.response?.status, err.response?.data, err.message);
-      if (err.response?.status === 409) setError('An account with this email already exists.');
-      else if (err.response?.data?.message) setError(err.response.data.message);
-      else setError(`Registration failed: ${err.message || 'Please try again.'}`);
+      // Use the actual error message from backend first
+      const backendMessage = err.response?.data?.message;
+      if (backendMessage) {
+        setError(backendMessage);
+      } else if (err.response?.status === 409) {
+        setError('An account with this email already exists.');
+      } else {
+        setError(`Registration failed: ${err.message || 'Please try again.'}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -89,21 +108,10 @@ function Register() {
         .hl-auth-card-header h3 { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 800; color: #1c1408; margin-bottom: 6px; }
         .hl-auth-card-header p  { font-size: 14px; color: #78716c; }
 
-        /* Section dividers */
-        .hl-section-divider {
-          display: flex; align-items: center; gap: 12px;
-          margin: 20px 0 16px;
-        }
-        .hl-section-divider span {
-          font-size: 11px; font-weight: 700; text-transform: uppercase;
-          letter-spacing: 1.2px; color: #d97706; white-space: nowrap;
-        }
-        .hl-section-divider::before,
-        .hl-section-divider::after {
-          content: ''; flex: 1; height: 1px; background: #f0e6d3;
-        }
+        .hl-section-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0 16px; }
+        .hl-section-divider span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #d97706; white-space: nowrap; }
+        .hl-section-divider::before, .hl-section-divider::after { content: ''; flex: 1; height: 1px; background: #f0e6d3; }
 
-        /* Two-column row */
         .hl-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
         .hl-auth-error { display: flex; align-items: center; gap: 10px; background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #dc2626; border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; font-size: 13px; color: #dc2626; font-weight: 500; }
@@ -245,8 +253,15 @@ function Register() {
                 <div className="hl-field">
                   <label>Phone Number</label>
                   <div className="hl-field-wrap">
-                    <input name="phone" type="tel" placeholder="09XX XXX XXXX"
-                      required value={form.phone} onChange={handleChange} />
+                    <input
+                      name="phone"
+                      type="tel"
+                      placeholder="0917 123 4567"
+                      required
+                      value={form.phone}
+                      onChange={handleChange}
+                      maxLength={13}
+                    />
                   </div>
                 </div>
                 <div className="hl-field">

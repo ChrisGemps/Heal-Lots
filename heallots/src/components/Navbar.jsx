@@ -37,7 +37,7 @@ function Navbar({ isLoggedIn, isAdmin }) {
         .hl-brand:hover { opacity: 0.85; }
 
         .hl-logo {
-          height: 44px;
+          height: 55px;
           width: auto;
           flex-shrink: 0;
           filter: brightness(0) invert(1)
