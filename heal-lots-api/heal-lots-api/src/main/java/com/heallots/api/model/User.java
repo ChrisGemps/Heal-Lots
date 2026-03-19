@@ -34,7 +34,7 @@ public class User {
     @Column(name = "address")
     private String address;
 
-    @Column(name = "profile_picture_url", columnDefinition = "LONGTEXT")
+    @Column(name = "profile_picture_url", length = 255)
     private String profilePictureUrl;
 
     @Column(name = "created_at")

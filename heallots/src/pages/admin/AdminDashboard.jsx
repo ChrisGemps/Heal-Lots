@@ -5,6 +5,7 @@ import axios from 'axios';
 const statusStyle = {
   Pending:   { bg: '#fef3c7', color: '#b45309', dot: '#d97706' },
   Approved:  { bg: '#dcfce7', color: '#15803d', dot: '#22c55e' },
+  Done:      { bg: '#dcfce7', color: '#15803d', dot: '#22c55e' },
   Cancelled: { bg: '#fee2e2', color: '#dc2626', dot: '#ef4444' },
   'Rescheduled by Patient': { bg: '#e0e7ff', color: '#4f46e5', dot: '#6366f1' },
   'Canceled by Patient': { bg: '#fee2e2', color: '#dc2626', dot: '#ef4444' },
@@ -34,11 +35,53 @@ export default function AdminDashboard({ setIsLoggedIn }) {
   const [reschedulingDate, setReschedulingDate] = useState('');
   const [reschedulingTime, setReschedulingTime] = useState('');
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+
+  const timeSlots = {
+    morning: ['08:00', '09:00', '10:00', '11:00', '12:00'],
+    afternoon: ['13:00', '14:00', '15:00', '16:00', '17:00']
+  };
+
+  const formatTimeSlot = (time) => {
+    const [hour, min] = time.split(':');
+    const h = parseInt(hour);
+    const meridiem = h >= 12 ? 'PM' : 'AM';
+    const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+    return `${displayHour}:${min} ${meridiem}`;
+  };
+
+  const getDaysInMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  const getFirstDayOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+
+  const generateCalendarDays = () => {
+    const daysInMonth = getDaysInMonth(calendarMonth);
+    const firstDay = getFirstDayOfMonth(calendarMonth);
+    const calendarDays = [];
+    
+    for (let i = 0; i < firstDay; i++) calendarDays.push(null);
+    for (let i = 1; i <= daysInMonth; i++) calendarDays.push(i);
+    
+    return calendarDays;
+  };
 
   const raw  = localStorage.getItem('user');
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Admin';
-  const photo = user?.profilePictureUrl || localStorage.getItem(user?.email ? `userPhoto_${user.email}` : 'userPhoto') || null;
+  const getPhotoKey = () => `userPhoto_${user?.id}`;
+  const buildPhotoUrl = (val) => {
+    if (!val) return null;
+    if (val.startsWith('data:') || val.startsWith('http')) return val;
+    if (val.startsWith('/uploads/')) return 'http://localhost:8080/api/user/profile-picture/' + val.split('/').pop();
+    return 'http://localhost:8080/api/user/profile-picture/' + val;
+  };
+  const photo = (() => {
+    const stored = localStorage.getItem(getPhotoKey());
+    const fromDb = user?.profilePictureUrl;
+    if (stored && stored.startsWith('http')) return stored;
+    const built = buildPhotoUrl(fromDb);
+    if (built) localStorage.setItem(getPhotoKey(), built);
+    return built || stored || null;
+  })();
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -58,19 +101,22 @@ export default function AdminDashboard({ setIsLoggedIn }) {
         });
         
         // Transform backend data to match UI format
-        const transformedAppointments = response.data.map(appt => ({
-          id: appt.id,
-          patient: appt.patientName,
-          service: appt.serviceName,
-          specialist: appt.specialistName,
-          date: appt.appointmentDate,
-          time: appt.timeSlot,
-          status: appt.status,
-          reason: appt.reason || 'N/A',
-          notes: appt.notes || '',
-          rescheduleReason: appt.rescheduleReason || '',
-          cancellationReason: appt.cancellationReason || '',
-        }));
+        const transformedAppointments = response.data.map(appt => {
+          console.log('Appointment data:', appt); // Debug log
+          return {
+            id: appt.id,
+            patient: appt.patientName,
+            service: appt.serviceName,
+            specialist: appt.specialistName,
+            date: appt.appointmentDate,
+            time: appt.timeSlot,
+            status: appt.status,
+            reason: appt.reason || 'N/A',
+            notes: appt.notes || '',
+            rescheduleReason: appt.rescheduleReason || '',
+            cancellationReason: appt.cancellationReason || '',
+          };
+        });
         
         setAppointments(transformedAppointments);
       } catch (err) {
@@ -214,7 +260,8 @@ export default function AdminDashboard({ setIsLoggedIn }) {
         { 
           appointmentDate: reschedulingDate,
           timeSlot: reschedulingTime,
-          rescheduleReason: ''
+          rescheduleReason: '',
+          status: 'Approved'
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -222,7 +269,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
       // Update local state
       setAppointments(prev =>
         prev.map(a => a.id === selectedAppt.id 
-          ? { ...a, date: reschedulingDate, time: reschedulingTime, status: 'Pending' } 
+          ? { ...a, date: reschedulingDate, time: reschedulingTime, status: 'Approved' } 
           : a
         )
       );
@@ -232,6 +279,30 @@ export default function AdminDashboard({ setIsLoggedIn }) {
     } catch (err) {
       console.error('Error rescheduling appointment:', err);
       alert('Failed to reschedule appointment');
+    }
+  };
+
+  const handleMarkAsDone = async () => {
+    if (!selectedAppt) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `http://localhost:8080/api/appointments/${selectedAppt.id}/status`,
+        { status: 'Done' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Update local state
+      setAppointments(prev =>
+        prev.map(a => a.id === selectedAppt.id ? { ...a, status: 'Done' } : a)
+      );
+
+      closeModal();
+      alert('Appointment marked as done successfully');
+    } catch (err) {
+      console.error('Error marking appointment as done:', err);
+      alert('Failed to mark appointment as done');
     }
   };
 
@@ -261,7 +332,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
   ];
 
   const navItems = [
-    { id: 'overview',     label: 'Admin Panel',      icon: '🏠' },
+    { id: 'overview',     label: 'Admin Panel',      icon: '👨🏻‍💻' },
     { id: 'appointments', label: 'Appointments',   icon: '📋' },
     { id: 'patients',     label: 'Patients',       icon: '👥' },
   ];
@@ -570,7 +641,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
             <div className="ad-topbar-brand" onClick={() => navigate('/admin')}>
               <img src="/logo.png" alt="Heal Lots" className="ad-topbar-logo" />
             </div>
-            <span className="ad-admin-chip">Admin Panel</span>
+            <span className="ad-admin-chip">Admin</span>
           </div>
           <div className="ad-topbar-right">
             <div className="ad-user-pill">
@@ -655,7 +726,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                             <td>
                               <div style={{ display: 'flex', gap: '6px' }}>
                                 <button className="ad-view-all" onClick={() => openModal(a)} style={{ fontSize: '12px', fontWeight: 700 }}>View Details</button>
-                                {a.status === 'Pending' && (
+                                {(a.status === 'Pending' || a.status === 'Rescheduled by Patient') && (
                                   <>
                                     <button className="ad-btn-approve" onClick={() => handleStatus(a.id, 'Approved')}>✓ Approve</button>
                                     <button className="ad-btn-reject"  onClick={() => handleStatus(a.id, 'Cancelled')}>✕ Reject</button>
@@ -701,7 +772,9 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                     >
                       <option value="All">All Statuses</option>
                       <option value="Pending">Pending</option>
+                      <option value="Rescheduled by Patient">Rescheduled by Patient</option>
                       <option value="Approved">Approved</option>
+                      <option value="Done">Done</option>
                       <option value="Cancelled">Cancelled</option>
                     </select>
                   </div>
@@ -739,7 +812,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                               <td>
                                 <div style={{ display: 'flex', gap: '6px' }}>
                                   <button className="ad-view-all" onClick={() => openModal(a)} style={{ fontSize: '12px', fontWeight: 700 }}>View Details</button>
-                                  {a.status === 'Pending' && (
+                                  {(a.status === 'Pending' || a.status === 'Rescheduled by Patient') && (
                                     <>
                                       <button className="ad-btn-approve" onClick={() => handleStatus(a.id, 'Approved')}>✓ Approve</button>
                                       <button className="ad-btn-reject"  onClick={() => handleStatus(a.id, 'Cancelled')}>✕ Reject</button>
@@ -901,9 +974,9 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                 </div>
               )}
 
-              {selectedAppt.rescheduleReason && (
+              {selectedAppt.status === 'Rescheduled by Patient' && (
                 <div style={{ marginTop: '16px' }}>
-                  <div className="ad-detail-label" style={{ marginBottom: '8px' }}>Reschedule Reason</div>
+                  <div className="ad-detail-label" style={{ marginBottom: '8px' }}>Reason For Rescheduling</div>
                   <div style={{
                     background: '#e0e7ff',
                     padding: '12px',
@@ -913,14 +986,14 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                     lineHeight: '1.5',
                     wordBreak: 'break-word'
                   }}>
-                    {selectedAppt.rescheduleReason}
+                    {selectedAppt.rescheduleReason || 'No reason provided'}
                   </div>
                 </div>
               )}
 
-              {selectedAppt.cancellationReason && (
+              {selectedAppt.cancellationReason && selectedAppt.status !== 'Rescheduled by Patient' && (
                 <div style={{ marginTop: '16px' }}>
-                  <div className="ad-detail-label" style={{ marginBottom: '8px' }}>Cancellation Reason</div>
+                  <div className="ad-detail-label" style={{ marginBottom: '8px' }}>Reason For Cancelling</div>
                   <div style={{
                     background: '#fee2e2',
                     padding: '12px',
@@ -954,13 +1027,17 @@ export default function AdminDashboard({ setIsLoggedIn }) {
             </div>
 
             <div className="ad-modal-actions">
-              {selectedAppt.status === 'Pending' && (
+              {(selectedAppt.status === 'Pending' || selectedAppt.status === 'Rescheduled by Patient') && (
                 <>
                   <button className="ad-btn-secondary" onClick={closeModal}>Close</button>
                   <button className="ad-btn-danger" onClick={() => setShowConfirmCancel(true)}>Reject</button>
                   <button 
                     className="ad-btn-primary" 
-                    onClick={() => handleStatus(selectedAppt.id, 'Approved')}
+                    onClick={() => {
+                      handleStatus(selectedAppt.id, 'Approved');
+                      alert('Appointment approved successfully');
+                      closeModal();
+                    }}
                     style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}
                   >
                     ✓ Approve
@@ -974,8 +1051,37 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                     <>
                       <button className="ad-btn-danger" onClick={() => setShowConfirmCancel(true)}>Cancel</button>
                       <button className="ad-btn-primary" onClick={() => setRescheduleMode(true)}>Reschedule</button>
+                      <button 
+                        className="ad-btn-primary" 
+                        onClick={handleMarkAsDone}
+                        style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)' }}
+                      >
+                        ✓ Mark as Done
+                      </button>
                     </>
                   )}
+                </>
+              )}
+              {selectedAppt.status === 'Done' && (
+                <>
+                  <button className="ad-btn-secondary" onClick={closeModal}>Close</button>
+                  <button 
+                    className="ad-btn-primary" 
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to mark this appointment as Approved?')) {
+                        handleStatus(selectedAppt.id, 'Approved');
+                        alert('Appointment marked as Approved successfully');
+                      }
+                    }}
+                    style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}
+                  >
+                    ↩ Mark as Approved
+                  </button>
+                </>
+              )}
+              {selectedAppt.status === 'Canceled by Patient' && (
+                <>
+                  <button className="ad-btn-secondary" onClick={closeModal}>Close</button>
                 </>
               )}
             </div>
@@ -986,52 +1092,157 @@ export default function AdminDashboard({ setIsLoggedIn }) {
       {/* ── MODAL: RESCHEDULE APPOINTMENT ── */}
       {modalOpen && selectedAppt && rescheduleMode && (
         <div className="ad-modal-overlay" onClick={closeModal}>
-          <div className="ad-modal" onClick={e => e.stopPropagation()}>
+          <div className="ad-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
             <div className="ad-modal-header">
-              <div className="ad-modal-title">Reschedule Appointment</div>
+              <div className="ad-modal-title">Select New Date & Time</div>
               <button className="ad-modal-close" onClick={closeModal}>✕</button>
             </div>
 
-            <div className="ad-modal-body">
-              <div className="ad-detail-row">
-                <div className="ad-detail-label">Current Date & Time</div>
-                <div className="ad-detail-value">{selectedAppt.date} at {selectedAppt.time}</div>
-              </div>
+            <div className="ad-modal-body" style={{ padding: '28px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+                {/* Calendar */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                    <button 
+                      onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
+                      style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#d97706' }}
+                    >
+                      ←
+                    </button>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#1c1408', minWidth: '140px', textAlign: 'center' }}>
+                      {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </div>
+                    <button 
+                      onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
+                      style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#d97706' }}
+                    >
+                      →
+                    </button>
+                  </div>
 
-              <div className="ad-detail-divider"></div>
+                  {/* Weekday headers */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', marginBottom: '12px' }}>
+                    {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day => (
+                      <div key={day} style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#d97706', textTransform: 'uppercase' }}>
+                        {day}
+                      </div>
+                    ))}
+                  </div>
 
-              <div className="ad-input-group">
-                <label className="ad-input-label">New Date</label>
-                <input
-                  type="date"
-                  className="ad-input-field"
-                  value={reschedulingDate}
-                  onChange={e => setReschedulingDate(e.target.value)}
-                  required
-                />
-              </div>
+                  {/* Calendar days */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
+                    {generateCalendarDays().map((day, idx) => {
+                      const dateObj = day ? new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day) : null;
+                      const dateStr = dateObj ? `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}` : '';
+                      const isSelected = reschedulingDate === dateStr;
+                      const isSunday = dateObj && dateObj.getDay() === 0;
+                      const isDisabled = !day || isSunday || dateObj < new Date(new Date().setHours(0, 0, 0, 0));
+                      
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => day && !isDisabled && setReschedulingDate(dateStr)}
+                          style={{
+                            padding: '10px',
+                            border: isSelected ? '2px solid #d97706' : '1px solid #e8ddd0',
+                            borderRadius: '8px',
+                            background: isSelected ? '#fef3c7' : !day || isDisabled ? '#f5f1e8' : '#fff',
+                            color: isDisabled ? '#c4a96b' : isSelected ? '#92400e' : '#1c1408',
+                            fontSize: '13px',
+                            fontWeight: isSelected ? 700 : 500,
+                            cursor: !day || isDisabled ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.15s'
+                          }}
+                          disabled={!day || isDisabled}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-              <div className="ad-input-group">
-                <label className="ad-input-label">New Time</label>
-                <input
-                  type="time"
-                  className="ad-input-field"
-                  value={reschedulingTime}
-                  onChange={e => setReschedulingTime(e.target.value)}
-                  required
-                />
+                {/* Time Slots */}
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#d97706', marginBottom: '18px' }}>
+                    SELECT TIME
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                    {/* Morning Section */}
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#a8956b', marginBottom: '10px' }}>
+                        MORNING
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                        {timeSlots.morning.map(time => {
+                          const isNoon = time === '12:00';
+                          return (
+                            <button
+                              key={time}
+                              onClick={() => !isNoon && setReschedulingTime(time)}
+                              disabled={isNoon}
+                              style={{
+                                padding: '12px',
+                                border: reschedulingTime === time ? '2px solid #d97706' : '1.5px solid #e8ddd0',
+                                borderRadius: '9px',
+                                background: isNoon ? '#f5f1e8' : reschedulingTime === time ? 'linear-gradient(135deg, #fef3c7, #fde68a)' : '#fff',
+                                color: isNoon ? '#c4a96b' : reschedulingTime === time ? '#92400e' : '#6b5a4e',
+                                fontSize: '14px',
+                                fontWeight: reschedulingTime === time ? 700 : 500,
+                                cursor: isNoon ? 'not-allowed' : 'pointer',
+                                transition: 'all 0.15s',
+                                opacity: isNoon ? 0.6 : 1
+                              }}
+                            >
+                              {formatTimeSlot(time)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Afternoon Section */}
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#a8956b', marginBottom: '10px' }}>
+                        AFTERNOON
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                        {timeSlots.afternoon.map(time => (
+                          <button
+                            key={time}
+                            onClick={() => setReschedulingTime(time)}
+                            style={{
+                              padding: '12px',
+                              border: reschedulingTime === time ? '2px solid #d97706' : '1.5px solid #e8ddd0',
+                              borderRadius: '9px',
+                              background: reschedulingTime === time ? 'linear-gradient(135deg, #fef3c7, #fde68a)' : '#fff',
+                              color: reschedulingTime === time ? '#92400e' : '#6b5a4e',
+                              fontSize: '14px',
+                              fontWeight: reschedulingTime === time ? 700 : 500,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            {formatTimeSlot(time)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
             <div className="ad-modal-actions">
-              <button className="ad-btn-secondary" onClick={() => setRescheduleMode(false)}>Cancel</button>
+              <button className="ad-btn-secondary" onClick={() => { setRescheduleMode(false); setReschedulingDate(''); setReschedulingTime(''); }}>Cancel</button>
               <button
                 className="ad-btn-primary"
                 onClick={handleRescheduleAppointment}
                 disabled={!reschedulingDate || !reschedulingTime}
                 style={{ opacity: (!reschedulingDate || !reschedulingTime) ? 0.6 : 1, cursor: (!reschedulingDate || !reschedulingTime) ? 'not-allowed' : 'pointer' }}
               >
-                Confirm Reschedule
+                ✓ Confirm Reschedule
               </button>
             </div>
           </div>

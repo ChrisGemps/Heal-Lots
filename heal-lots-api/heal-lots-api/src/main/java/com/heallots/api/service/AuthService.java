@@ -90,12 +90,24 @@ public class AuthService {
         User user = userOpt.get();
         
         if (req.getFullName() != null) user.setFullName(req.getFullName());
+        if (req.getEmail() != null) user.setEmail(req.getEmail());
         if (req.getPhone() != null) user.setPhone(req.getPhone());
         if (req.getBirthday() != null) user.setBirthday(req.getBirthday());
         if (req.getGender() != null) user.setGender(req.getGender());
         if (req.getAddress() != null) user.setAddress(req.getAddress());
         if (req.getProfilePictureUrl() != null) user.setProfilePictureUrl(req.getProfilePictureUrl());
         
+        return userRepository.save(user);
+    }
+
+    public User updateProfilePicture(String email, String profilePictureUrl) throws Exception {
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("User not found.");
+        }
+
+        User user = userOpt.get();
+        user.setProfilePictureUrl(profilePictureUrl);
         return userRepository.save(user);
     }
 }

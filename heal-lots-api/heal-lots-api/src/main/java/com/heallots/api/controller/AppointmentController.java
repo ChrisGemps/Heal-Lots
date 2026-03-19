@@ -71,7 +71,7 @@ public class AppointmentController {
                                                      @RequestBody StatusUpdateRequest req) {
         try {
             extractEmailFromAuthHeader(authHeader);
-            Appointment appointment = appointmentService.updateAppointmentStatus(UUID.fromString(id), req.getStatus());
+            Appointment appointment = appointmentService.updateAppointmentStatus(UUID.fromString(id), req.getStatus(), req.getCancellationReason());
             AppointmentDto dto = AppointmentDto.fromAppointment(appointment);
             return ResponseEntity.ok(dto);
         } catch (IllegalArgumentException e) {
@@ -87,7 +87,7 @@ public class AppointmentController {
                                                @RequestBody RescheduleRequest req) {
         try {
             extractEmailFromAuthHeader(authHeader);
-            Appointment appointment = appointmentService.updateAppointment(UUID.fromString(id), req.getAppointmentDate(), req.getTimeSlot(), req.getRescheduleReason());
+            Appointment appointment = appointmentService.updateAppointment(UUID.fromString(id), req.getAppointmentDate(), req.getTimeSlot(), req.getRescheduleReason(), req.getStatus());
             AppointmentDto dto = AppointmentDto.fromAppointment(appointment);
             return ResponseEntity.ok(dto);
         } catch (IllegalArgumentException e) {
@@ -118,6 +118,7 @@ public class AppointmentController {
     @Data
     static class StatusUpdateRequest {
         public String status;
+        public String cancellationReason;
     }
 
     @Data
@@ -125,5 +126,6 @@ public class AppointmentController {
         public String appointmentDate;
         public String timeSlot;
         public String rescheduleReason;
+        public String status;
     }
 }

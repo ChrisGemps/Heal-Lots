@@ -33,11 +33,33 @@ export default function MyAppointments({ setIsLoggedIn }) {
   const [rescheduleReason, setRescheduleReason] = useState('');
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notificationVisible, setNotificationVisible] = useState(false);
+  const [notificationType, setNotificationType] = useState('success');
+  const [notificationHovered, setNotificationHovered] = useState(false);
 
   const raw = localStorage.getItem('user');
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Patient';
-  const photo = user?.profilePictureUrl || localStorage.getItem(user?.email ? `userPhoto_${user.email}` : 'userPhoto') || null;
+  const getPhotoKey = () => `userPhoto_${user?.id}`;
+  const buildPhotoUrl = (val) => {
+    if (!val) return null;
+    if (val.startsWith('data:') || val.startsWith('http')) return val;
+    if (val.startsWith('/uploads/')) return 'http://localhost:8080/api/user/profile-picture/' + val.split('/').pop();
+    return 'http://localhost:8080/api/user/profile-picture/' + val;
+  };
+  const photo = (() => {
+    const stored = localStorage.getItem(getPhotoKey());
+    const fromDb = user?.profilePictureUrl;
+    if (stored && stored.startsWith('http')) return stored;
+    const built = buildPhotoUrl(fromDb);
+    if (built) localStorage.setItem(getPhotoKey(), built);
+    return built || stored || null;
+  })();
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -110,12 +132,68 @@ export default function MyAppointments({ setIsLoggedIn }) {
     setSelectedAppt(null);
     setRescheduleMode(false);
     setShowConfirmCancel(false);
+    setShowReviewModal(false);
     setReschedulingDay(null);
     setReschedulingTime('');
     setRescheduleReason('');
     setCancelReason('');
+    setReviewRating(0);
+    setReviewText('');
     setCalYear(new Date().getFullYear());
     setCalMonth(new Date().getMonth());
+  };
+
+  const handleSubmitReview = async () => {
+    if (!selectedAppt || reviewRating === 0) {
+      setNotificationType('error');
+      setNotificationMessage('Please select a rating');
+      setNotificationVisible(true);
+      return;
+    }
+
+    if (selectedAppt.reviewed) {
+      setNotificationType('error');
+      setNotificationMessage('You have already submitted a review for this appointment.');
+      setNotificationVisible(true);
+      return;
+    }
+
+    setReviewSubmitting(true);
+    try {
+      const token = localStorage.getItem('token');
+      const reviewData = {
+        appointmentId: selectedAppt.id,
+        specialistName: selectedAppt.specialist,
+        serviceName: selectedAppt.service,
+        rating: reviewRating,
+        reviewText: reviewText.trim(),
+        patientName: displayName,
+        patientEmail: user?.email,
+      };
+
+      // Submit review to backend
+      const response = await axios.post('http://localhost:8080/api/reviews', reviewData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      // Mark appointment as reviewed in local state
+      setAppointments(prev =>
+        prev.map(a => a.id === selectedAppt.id ? { ...a, reviewed: true } : a)
+      );
+
+      setNotificationType('success');
+      setNotificationMessage('Thank you for your review! Your feedback helps us improve our services.');
+      setNotificationVisible(true);
+      setTimeout(() => closeModal(), 1500);
+    } catch (err) {
+      console.error('Error submitting review:', err);
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Failed to submit review. Please try again.';
+      setNotificationType('error');
+      setNotificationMessage(errorMessage);
+      setNotificationVisible(true);
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   const handleCancelAppointment = async () => {
@@ -127,8 +205,10 @@ export default function MyAppointments({ setIsLoggedIn }) {
     setAppointments(prev => 
       prev.map(a => a.id === appointmentId ? { ...a, status: 'Canceled by Patient', cancellationReason: cancelReason } : a)
     );
-    closeModal();
-    alert('Appointment cancelled successfully');
+    setNotificationType('success');
+    setNotificationMessage('Appointment cancelled successfully');
+    setNotificationVisible(true);
+    setTimeout(() => closeModal(), 1500);
 
     // Update backend asynchronously
     try {
@@ -140,7 +220,9 @@ export default function MyAppointments({ setIsLoggedIn }) {
       );
     } catch (err) {
       console.error('Error cancelling appointment:', err);
-      alert('Failed to update appointment on server');
+      setNotificationType('error');
+      setNotificationMessage('Failed to cancel appointment. Please try again.');
+      setNotificationVisible(true);
     }
   };
 
@@ -157,8 +239,10 @@ export default function MyAppointments({ setIsLoggedIn }) {
         : a
       )
     );
-    closeModal();
-    alert('                      Appointment Rescheduled Successfully.\n                     Please Wait For the Approval of the Clinic');
+    setNotificationType('success');
+    setNotificationMessage('Appointment Rescheduled Successfully. Please wait for the approval of the clinic.');
+    setNotificationVisible(true);
+    setTimeout(() => closeModal(), 1500);
 
     // Update backend asynchronously
     try {
@@ -175,7 +259,9 @@ export default function MyAppointments({ setIsLoggedIn }) {
       );
     } catch (err) {
       console.error('Error rescheduling appointment:', err);
-      alert('Failed to update appointment on server');
+      setNotificationType('error');
+      setNotificationMessage('Failed to reschedule appointment. Please try again.');
+      setNotificationVisible(true);
     }
   };
 
@@ -200,6 +286,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
           notes: appt.notes || '',
           rescheduleReason: appt.rescheduleReason || '',
           cancellationReason: appt.cancellationReason || '',
+          reviewed: false, // Will be updated after checking
         }));
         
         // Sort appointments by date (closest upcoming date first)
@@ -209,7 +296,22 @@ export default function MyAppointments({ setIsLoggedIn }) {
           return dateA - dateB;
         });
         
-        setAppointments(transformedAppointments);
+        // Fetch review status for each past appointment
+        const appointmentsWithReviewStatus = await Promise.all(
+          transformedAppointments.map(async (appt) => {
+            try {
+              const reviewResponse = await axios.get(`http://localhost:8080/api/reviews/appointment/${appt.id}/reviewed`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              return { ...appt, reviewed: reviewResponse.data.reviewed };
+            } catch (err) {
+              console.error(`Error checking review status for appointment ${appt.id}:`, err);
+              return appt; // Return without review status if check fails
+            }
+          })
+        );
+        
+        setAppointments(appointmentsWithReviewStatus);
       } catch (err) {
         console.error('Error fetching appointments:', err);
         // Keep empty array if fetch fails
@@ -220,6 +322,16 @@ export default function MyAppointments({ setIsLoggedIn }) {
     
     fetchAppointments();
   }, []);
+
+  // Auto-close notification after 3 seconds when not hovered
+  useEffect(() => {
+    if (notificationVisible && !notificationHovered) {
+      const timer = setTimeout(() => {
+        setNotificationVisible(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notificationVisible, notificationHovered]);
 
   // Helper function to parse date string and determine if it's upcoming or past
   const isUpcoming = (dateString) => {
@@ -233,9 +345,9 @@ export default function MyAppointments({ setIsLoggedIn }) {
     }
   };
 
-  const upcoming = appointments.filter(a => a.status !== 'Cancelled' && isUpcoming(a.date));
-  const past = appointments.filter(a => a.status !== 'Cancelled' && !isUpcoming(a.date));
-  const cancelled = appointments.filter(a => a.status === 'Cancelled');
+  const upcoming = appointments.filter(a => a.status !== 'Cancelled' && a.status !== 'Canceled by Patient' && a.status !== 'Done' && isUpcoming(a.date));
+  const past = appointments.filter(a => (a.status !== 'Cancelled' && a.status !== 'Canceled by Patient' && !isUpcoming(a.date)) || a.status === 'Done');
+  const cancelled = appointments.filter(a => a.status === 'Cancelled' || a.status === 'Canceled by Patient');
 
   const list = tab === "upcoming" ? upcoming : tab === "past" ? past : cancelled;
 
@@ -243,6 +355,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
     Pending: { bg: '#fef3c7', color: '#b45309',  dot: '#d97706' },
     Scheduled: { bg: '#fef3c7', color: '#b45309',  dot: '#d97706' },
     Approved: { bg: '#dcfce7', color: '#15803d',  dot: '#22c55e' },
+    Done: { bg: '#dcfce7', color: '#15803d',  dot: '#22c55e' },
     Completed: { bg: '#dcfce7', color: '#15803d',  dot: '#22c55e' },
     Cancelled: { bg: '#fee2e2', color: '#dc2626',  dot: '#ef4444' },
     'Rescheduled by Patient': { bg: '#e0e7ff', color: '#4f46e5',  dot: '#6366f1' },
@@ -308,6 +421,15 @@ export default function MyAppointments({ setIsLoggedIn }) {
           cursor: pointer; transition: all 0.18s;
         }
         .ud-logout-btn:hover { background: rgba(217,119,6,0.22); border-color: rgba(217,119,6,0.5); }
+        .ud-admin-btn {
+          background: #bbab81;
+          border: none;
+          color: #1c1408; border-radius: 20px; padding: 8px 18px;
+          font-size: 12px; font-weight: 700; font-family: 'DM Sans', sans-serif;
+          cursor: pointer; transition: all 0.18s;
+          letter-spacing: 0.5px; text-transform: uppercase;
+        }
+        .ud-admin-btn:hover { background: #f59e0b; box-shadow: 0 4px 12px rgba(217,119,6,0.3); }
 
         /* ── MAIN ── */
         .ma-main { max-width: 1000px; margin: 0 auto; padding: 36px 24px 64px; }
@@ -488,6 +610,11 @@ export default function MyAppointments({ setIsLoggedIn }) {
         }
         .ma-empty-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(217,119,6,0.45); }
 
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
         @media (max-width: 768px) {
           .ud-topbar { padding: 0 20px; }
           .ud-user-info { display: none; }
@@ -506,6 +633,11 @@ export default function MyAppointments({ setIsLoggedIn }) {
           </div>
           <div className="ud-topbar-right">
             <nav className="ud-topbar-nav">
+              {user?.role === 'ADMIN' && (
+                <button className="ud-admin-btn" onClick={() => navigate('/admin')} title="Go to Admin Panel">
+                  ADMIN dashboard
+                </button>
+              )}
               <Link to="/dashboard"    className={location.pathname === '/dashboard'    ? 'active' : ''}>Dashboard</Link>
               <Link to="/book"         className={location.pathname === '/book'         ? 'active' : ''}>Book Session</Link>
               <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
@@ -516,7 +648,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
               </div>
               <div className="ud-user-info">
                 <div className="ud-user-name">{displayName}</div>
-                <div className="ud-user-role">Patient</div>
+                <div className="ud-user-role">{user?.role === 'ADMIN' ? 'ADMIN' : 'Patient'}</div>
               </div>
             </div>
             <button className="ud-logout-btn" onClick={handleLogout}>Sign Out</button>
@@ -620,7 +752,9 @@ export default function MyAppointments({ setIsLoggedIn }) {
                           className="ma-btn ma-btn-light" 
                           onClick={() => {
                             if (!canModifyAppointment(a.date, a.time)) {
-                              alert('Appointments can only be rescheduled at least 24 hours before the scheduled time. Please contact the clinic if you need to make changes within 24 hours of your appointment.');
+                              setNotificationType('error');
+                              setNotificationMessage('Appointments can only be rescheduled at least 24 hours before the scheduled time. Please contact the clinic if you need to make changes within 24 hours of your appointment.');
+                              setNotificationVisible(true);
                             } else {
                               setSelectedAppt(a);
                               setRescheduleMode(true);
@@ -634,7 +768,9 @@ export default function MyAppointments({ setIsLoggedIn }) {
                           className="ma-btn ma-btn-red"
                           onClick={() => {
                             if (!canModifyAppointment(a.date, a.time)) {
-                              alert('Appointments can only be canceled at least 24 hours before the scheduled time. Please contact the clinic if you need to cancel within 24 hours of your appointment.');
+                              setNotificationType('error');
+                              setNotificationMessage('Appointments can only be canceled at least 24 hours before the scheduled time. Please contact the clinic if you need to cancel within 24 hours of your appointment.');
+                              setNotificationVisible(true);
                             } else {
                               setSelectedAppt(a);
                               setShowConfirmCancel(true);
@@ -648,6 +784,19 @@ export default function MyAppointments({ setIsLoggedIn }) {
                     ) : tab === 'past' ? (
                       <>
                         <button className="ma-btn ma-btn-light" onClick={() => openModal(a)}>📄 View Summary</button>
+                        <button 
+                          className="ma-btn ma-btn-dark" 
+                          onClick={() => {
+                            setSelectedAppt(a);
+                            setShowReviewModal(true);
+                            setModalOpen(true);
+                          }}
+                          disabled={a.reviewed}
+                          title={a.reviewed ? 'Review already submitted' : 'Leave a review'}
+                          style={a.reviewed ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                        >
+                          {a.reviewed ? '✓ Review Submitted' : '⭐ Leave Review'}
+                        </button>
                         <button className="ma-btn ma-btn-dark" onClick={() => navigate('/book')}>Book Follow-up →</button>
                       </>
                     ) : (
@@ -676,7 +825,142 @@ export default function MyAppointments({ setIsLoggedIn }) {
               maxWidth: '800px', width: '90%', maxHeight: '90vh', overflowY: 'auto',
               boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
             }}>
-              {!rescheduleMode && !showConfirmCancel ? (
+              {showReviewModal ? (
+                <>
+                  {selectedAppt?.reviewed ? (
+                    <>
+                      <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 700, marginBottom: '16px', color: '#1c1408' }}>
+                        ✓ Review Already Submitted
+                      </h2>
+                      <p style={{ fontSize: '14px', color: '#78716c', marginBottom: '24px' }}>
+                        You have already submitted a review for this appointment with {selectedAppt?.specialist}. Thank you for your feedback!
+                      </p>
+                      <div style={{ background: '#dcfce7', border: '1px solid #22c55e', borderRadius: '10px', padding: '16px', marginBottom: '24px' }}>
+                        <p style={{ fontSize: '13px', color: '#15803d', margin: 0 }}>
+                          Your review helps us maintain the quality of our services. We appreciate your input!
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowReviewModal(false)}
+                        style={{
+                          width: '100%', padding: '11px 12px', borderRadius: '10px', fontWeight: 600,
+                          border: '1.5px solid #e8ddd0', background: '#fff', color: '#44291a',
+                          cursor: 'pointer', fontSize: '13px', fontFamily: "'DM Sans', sans-serif",
+                          transition: 'all 0.18s'
+                        }}
+                      >
+                        Close
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 700, marginBottom: '8px', color: '#1c1408' }}>
+                        Leave a Review
+                      </h2>
+                      <p style={{ fontSize: '14px', color: '#78716c', marginBottom: '24px' }}>
+                        Share your experience with {selectedAppt?.specialist}
+                      </p>
+
+                      <div style={{ marginBottom: '24px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.5px' }}>
+                          Service: {selectedAppt?.service}
+                        </label>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.5px' }}>
+                          Specialist: {selectedAppt?.specialist}
+                        </label>
+                      </div>
+
+                      <div style={{ marginBottom: '24px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.5px' }}>
+                          Rate Your Experience *
+                        </label>
+                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              onClick={() => setReviewRating(star)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: star === reviewRating ? '48px' : '40px',
+                                opacity: star <= reviewRating ? 1 : 0.3,
+                                transition: 'all 0.2s',
+                                transform: star === reviewRating ? 'scale(1.1)' : 'scale(1)',
+                              }}
+                              title={`Rate ${star} stars`}
+                            >
+                              ⭐
+                            </button>
+                          ))}
+                        </div>
+                        {reviewRating > 0 && (
+                          <div style={{ fontSize: '13px', color: '#d97706', fontWeight: 600, marginTop: '8px' }}>
+                            {reviewRating === 1 ? 'Poor' : reviewRating === 2 ? 'Fair' : reviewRating === 3 ? 'Good' : reviewRating === 4 ? 'Very Good' : 'Excellent'} ({reviewRating}/5)
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ marginBottom: '24px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                          Your Feedback (Optional)
+                        </label>
+                        <textarea
+                          value={reviewText}
+                          onChange={(e) => setReviewText(e.target.value.slice(0, 500))}
+                          placeholder="Share details about your experience, areas for improvement, or anything else..."
+                          style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            border: '1.5px solid #e8ddd0',
+                            borderRadius: '10px',
+                            fontSize: '13px',
+                            fontFamily: "'DM Sans', sans-serif",
+                            color: '#1c1408',
+                            outline: 'none',
+                            resize: 'vertical',
+                            minHeight: '100px',
+                            transition: 'border-color 0.18s'
+                          }}
+                        />
+                        <div style={{ fontSize: '11px', color: '#a8956b', marginTop: '6px' }}>
+                          {reviewText.length}/500 characters
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+                        <button
+                          onClick={handleSubmitReview}
+                          disabled={reviewRating === 0 || reviewSubmitting}
+                          style={{
+                            flex: 1, padding: '11px 12px', borderRadius: '10px', fontWeight: 600,
+                            background: reviewRating === 0 || reviewSubmitting ? 'rgba(217,119,6,0.3)' : 'linear-gradient(135deg, #0f172a, #1c1408)',
+                            border: 'none',
+                            color: reviewRating === 0 || reviewSubmitting ? '#ccc' : '#fbbf24',
+                            cursor: reviewRating === 0 || reviewSubmitting ? 'not-allowed' : 'pointer',
+                            fontSize: '13px',
+                            fontFamily: "'DM Sans', sans-serif",
+                            transition: 'all 0.18s'
+                          }}
+                        >
+                          {reviewSubmitting ? '⏳ Submitting...' : '✓ Submit Review'}
+                        </button>
+                        <button
+                          onClick={() => setShowReviewModal(false)}
+                          style={{
+                            flex: 1, padding: '11px 12px', borderRadius: '10px', fontWeight: 600,
+                            border: '1.5px solid #e8ddd0', background: '#fff', color: '#44291a',
+                            cursor: 'pointer', fontSize: '13px', fontFamily: "'DM Sans', sans-serif",
+                            transition: 'all 0.18s'
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : !rescheduleMode && !showConfirmCancel ? (
                 <>
                   <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 700, marginBottom: '20px', color: '#1c1408' }}>
                     Appointment Details
@@ -721,7 +1005,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
                         </div>
                       </div>
                     )}
-                    {selectedAppt.rescheduleReason && (
+                    {selectedAppt.rescheduleReason && selectedAppt.status === 'Rescheduled by Patient' && (
                       <div style={{ marginTop: '16px' }}>
                         <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Reschedule Reason</label>
                         <div style={{ fontSize: '14px', color: '#1c1408', lineHeight: '1.5', wordBreak: 'break-word', background: '#e0e7ff', padding: '12px', borderRadius: '8px' }}>
@@ -729,7 +1013,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
                         </div>
                       </div>
                     )}
-                    {selectedAppt.cancellationReason && (
+                    {selectedAppt.cancellationReason && selectedAppt.status !== 'Rescheduled by Patient' && (
                       <div style={{ marginTop: '16px' }}>
                         <label style={{ fontSize: '12px', fontWeight: 600, color: '#a8956b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Cancellation Reason</label>
                         <div style={{ fontSize: '14px', color: '#1c1408', lineHeight: '1.5', wordBreak: 'break-word', background: '#fee2e2', padding: '12px', borderRadius: '8px' }}>
@@ -744,7 +1028,9 @@ export default function MyAppointments({ setIsLoggedIn }) {
                       <button
                         onClick={() => {
                           if (!canModifyAppointment(selectedAppt.date, selectedAppt.time)) {
-                            alert('Appointments can only be rescheduled at least 24 hours before the scheduled time. Please contact the clinic if you need to make changes within 24 hours of your appointment.');
+                            setNotificationType('error');
+                            setNotificationMessage('Appointments can only be rescheduled at least 24 hours before the scheduled time. Please contact the clinic if you need to make changes within 24 hours of your appointment.');
+                            setNotificationVisible(true);
                           } else {
                             setRescheduleMode(true);
                           }
@@ -761,7 +1047,9 @@ export default function MyAppointments({ setIsLoggedIn }) {
                       <button
                         onClick={() => {
                           if (!canModifyAppointment(selectedAppt.date, selectedAppt.time)) {
-                            alert('Appointments can only be canceled at least 24 hours before the scheduled time. Please contact the clinic if you need to cancel within 24 hours of your appointment.');
+                            setNotificationType('error');
+                            setNotificationMessage('Appointments can only be canceled at least 24 hours before the scheduled time. Please contact the clinic if you need to cancel within 24 hours of your appointment.');
+                            setNotificationVisible(true);
                           } else {
                             setShowConfirmCancel(true);
                           }
@@ -1069,6 +1357,50 @@ export default function MyAppointments({ setIsLoggedIn }) {
                 </>
               ) : null}
             </div>
+          </div>
+        )}
+
+        {/* NOTIFICATION POPUP */}
+        {notificationVisible && (
+          <div 
+            onMouseEnter={() => setNotificationHovered(true)}
+            onMouseLeave={() => setNotificationHovered(false)}
+            style={{
+              position: 'fixed',
+              top: '100px',
+              right: '50px',
+              background: notificationType === 'success' ? '#dcfce7' : '#fee2e2',
+              border: `1.5px solid ${notificationType === 'success' ? '#22c55e' : '#ef4444'}`,
+              borderRadius: '30px',
+              padding: '16px 20px',
+              maxWidth: '380px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              boxShadow: '0 10px 28px rgba(0,0,0,0.15)',
+              animation: 'slideUp 0.3s ease-out',
+              zIndex: 2000
+            }}>
+            <span style={{ fontSize: '20px' }}>
+              {notificationType === 'success' ? '✓' : '⚠️'}
+            </span>
+            <div style={{ flex: 1, fontSize: '14px', color: notificationType === 'success' ? '#15803d' : '#dc2626', fontWeight: 500, lineHeight: '1.4' }}>
+              {notificationMessage}
+            </div>
+            <button
+              onClick={() => setNotificationVisible(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '18px',
+                color: notificationType === 'success' ? '#15803d' : '#dc2626',
+                transition: 'opacity 0.2s',
+                padding: '2px',
+              }}
+            >
+              ✕
+            </button>
           </div>
         )}
 

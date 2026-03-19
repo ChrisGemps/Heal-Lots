@@ -25,7 +25,21 @@ export default function Home({ isLoggedIn, setIsLoggedIn }) {
   const raw = localStorage.getItem('user');
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Patient';
-  const photo = user?.profilePictureUrl || localStorage.getItem(user?.email ? `userPhoto_${user.email}` : 'userPhoto') || null;
+  const getPhotoKey = () => `userPhoto_${user?.id}`;
+  const buildPhotoUrl = (val) => {
+    if (!val) return null;
+    if (val.startsWith('data:') || val.startsWith('http')) return val;
+    if (val.startsWith('/uploads/')) return 'http://localhost:8080/api/user/profile-picture/' + val.split('/').pop();
+    return 'http://localhost:8080/api/user/profile-picture/' + val;
+  };
+  const photo = (() => {
+    const stored = localStorage.getItem(getPhotoKey());
+    const fromDb = user?.profilePictureUrl;
+    if (stored && stored.startsWith('http')) return stored;
+    const built = buildPhotoUrl(fromDb);
+    if (built) localStorage.setItem(getPhotoKey(), built);
+    return built || stored || null;
+  })();
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -129,6 +143,15 @@ export default function Home({ isLoggedIn, setIsLoggedIn }) {
           cursor: pointer; transition: all 0.18s;
         }
         .hl-user-logout-btn:hover { background: rgba(217,119,6,0.22); border-color: rgba(217,119,6,0.5); }
+        .hl-user-admin-btn {
+          background: #bbab81;
+          border: none;
+          color: #1c1408; border-radius: 20px; padding: 8px 18px;
+          font-size: 12px; font-weight: 700; font-family: 'DM Sans', sans-serif;
+          cursor: pointer; transition: all 0.18s;
+          letter-spacing: 0.5px; text-transform: uppercase;
+        }
+        .hl-user-admin-btn:hover { background: #f59e0b; box-shadow: 0 4px 12px rgba(217,119,6,0.3); }
         @media (max-width: 768px) {
           .hl-user-topbar { padding: 0 20px; }
           .hl-user-info { display: none; }
@@ -152,6 +175,11 @@ export default function Home({ isLoggedIn, setIsLoggedIn }) {
           </div>
           <div className="hl-user-topbar-right">
             <nav className="hl-user-topbar-nav">
+              {user?.role === 'ADMIN' && (
+                <button className="hl-user-admin-btn" onClick={() => navigate('/admin')} title="Go to Admin Panel">
+                  ADMIN dashboard
+                </button>
+              )}
               <Link to="/dashboard"    className={location.pathname === '/dashboard'    ? 'active' : ''}>Dashboard</Link>
               <Link to="/book"         className={location.pathname === '/book'         ? 'active' : ''}>Book Session</Link>
               <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
@@ -162,7 +190,7 @@ export default function Home({ isLoggedIn, setIsLoggedIn }) {
               </div>
               <div className="hl-user-info">
                 <div className="hl-user-name">{displayName}</div>
-                <div className="hl-user-role">Patient</div>
+                <div className="hl-user-role">{user?.role === 'ADMIN' ? 'ADMIN' : 'Patient'}</div>
               </div>
             </div>
             <button className="hl-user-logout-btn" onClick={handleLogout}>Sign Out</button>

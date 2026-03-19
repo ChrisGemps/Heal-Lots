@@ -3,12 +3,12 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 
 const SERVICES = [
-  { id: 1, name: 'Traditional Hilot',   specialist: 'Manang Rosa',    emoji: '🤲🏻', tag: 'Most Popular', rating: 4.9, reviews: 214 },
-  { id: 2, name: 'Herbal Compress',     specialist: 'Mang Berting',   emoji: '🌿', tag: 'Best for Pain', rating: 4.8, reviews: 178 },
-  { id: 3, name: 'Head & Neck Relief',  specialist: 'Ate Cora',       emoji: '💆🏻‍♀️', tag: 'Stress Relief',  rating: 4.9, reviews: 193 },
-  { id: 4, name: 'Foot Reflexology',    specialist: 'Manang Lourdes', emoji: '🦶🏼', tag: 'Walk-in',        rating: 4.7, reviews: 152 },
-  { id: 5, name: 'Hot Oil Massage',     specialist: 'Mang Totoy',     emoji: '🫙', tag: 'New',            rating: 4.8, reviews: 89  },
-  { id: 6, name: 'Whole-Body Hilot',    specialist: 'Ate Nena',       emoji: '🧘🏻', tag: 'Premium',        rating: 5.0, reviews: 301 },
+  { id: 1, name: 'Traditional Hilot',   specialist: 'Manang Rosa',    emoji: '🤲🏻', tag: 'Most Popular' },
+  { id: 2, name: 'Herbal Compress',     specialist: 'Mang Berting',   emoji: '🌿', tag: 'Best for Pain' },
+  { id: 3, name: 'Head & Neck Relief',  specialist: 'Ate Cora',       emoji: '💆🏻‍♀️', tag: 'Stress Relief' },
+  { id: 4, name: 'Foot Reflexology',    specialist: 'Manang Lourdes', emoji: '🦶🏼', tag: 'Walk-in' },
+  { id: 5, name: 'Hot Oil Massage',     specialist: 'Mang Totoy',     emoji: '🫙', tag: 'New' },
+  { id: 6, name: 'Whole-Body Hilot',    specialist: 'Ate Nena',       emoji: '🧘🏻', tag: 'Premium' },
 ];
 
 const TIME_SLOTS = ['8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'];
@@ -55,6 +55,7 @@ export default function BookAppointment({ setIsLoggedIn }) {
   const [notes,       setNotes]       = useState('');
   const [submitted,   setSubmitted]   = useState(false);
   const [bookedSlots, setBookedSlots] = useState([]);
+  const [specialistRatings, setSpecialistRatings] = useState({});
 
   const daysInMonth  = getDaysInMonth(calYear, calMonth);
   const firstDay     = getFirstDayOfMonth(calYear, calMonth);
@@ -89,6 +90,27 @@ export default function BookAppointment({ setIsLoggedIn }) {
     };
     
     fetchApprovedAppointments();
+  }, []);
+
+  // Fetch specialist ratings and reviews
+  useEffect(() => {
+    const fetchSpecialistRatings = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get('http://localhost:8080/api/reviews/specialist-ratings', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        // Format: { "Manang Rosa": { rating: 4.9, reviews: 214 }, ... }
+        setSpecialistRatings(response.data || {});
+      } catch (err) {
+        console.error('Error fetching specialist ratings:', err);
+        // Fallback: set empty ratings to avoid errors
+        setSpecialistRatings({});
+      }
+    };
+    
+    fetchSpecialistRatings();
   }, []);
 
   const canProceedStep1 = !!service;
@@ -148,7 +170,21 @@ export default function BookAppointment({ setIsLoggedIn }) {
   };
 
   const displayName = user?.fullName || user?.name || 'Patient';
-  const photo = user?.profilePictureUrl || localStorage.getItem(user?.email ? `userPhoto_${user.email}` : 'userPhoto') || null;
+  const getPhotoKey = () => `userPhoto_${user?.id}`;
+  const buildPhotoUrl = (val) => {
+    if (!val) return null;
+    if (val.startsWith('data:') || val.startsWith('http')) return val;
+    if (val.startsWith('/uploads/')) return 'http://localhost:8080/api/user/profile-picture/' + val.split('/').pop();
+    return 'http://localhost:8080/api/user/profile-picture/' + val;
+  };
+  const photo = (() => {
+    const stored = localStorage.getItem(getPhotoKey());
+    const fromDb = user?.profilePictureUrl;
+    if (stored && stored.startsWith('http')) return stored;
+    const built = buildPhotoUrl(fromDb);
+    if (built) localStorage.setItem(getPhotoKey(), built);
+    return built || stored || null;
+  })();
 
   return (
     <>
@@ -230,6 +266,15 @@ export default function BookAppointment({ setIsLoggedIn }) {
           cursor: pointer; transition: all 0.18s;
         }
         .ba-logout-btn:hover { background: rgba(217,119,6,0.22); border-color: rgba(217,119,6,0.5); }
+        .ba-admin-btn {
+          background: #bbab81;
+          border: none;
+          color: #1c1408; border-radius: 20px; padding: 8px 18px;
+          font-size: 12px; font-weight: 700; font-family: 'DM Sans', sans-serif;
+          cursor: pointer; transition: all 0.18s;
+          letter-spacing: 0.5px; text-transform: uppercase;
+        }
+        .ba-admin-btn:hover { background: #f59e0b; box-shadow: 0 4px 12px rgba(217,119,6,0.3); }
 
         /* ── BODY ── */
         .ba-body { flex: 1; max-width: 860px; margin: 0 auto; padding: 40px 24px 60px; width: 100%; }
@@ -490,6 +535,11 @@ export default function BookAppointment({ setIsLoggedIn }) {
           </div>
           <div className="ba-topbar-right">
             <nav className="ba-topbar-nav">
+              {user?.role === 'ADMIN' && (
+                <button className="ba-admin-btn" onClick={() => navigate('/admin')} title="Go to Admin Panel">
+                  ADMIN dashboard
+                </button>
+              )}
               <Link to="/dashboard" className={location.pathname === '/dashboard' ? 'active' : ''}>Dashboard</Link>
               <Link to="/book"         className={location.pathname === '/book'         ? 'active' : ''}>Book Session</Link>
               <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
@@ -498,7 +548,7 @@ export default function BookAppointment({ setIsLoggedIn }) {
               <div className="ba-avatar" onClick={() => navigate('/profile')} title="View Profile" style={{cursor:'pointer'}}>{photo ? <img src={photo} alt="Profile" /> : displayName.charAt(0).toUpperCase()}</div>
               <div className="ba-user-info">
                 <div className="ba-user-name">{displayName}</div>
-                <div className="ba-user-role">Patient</div>
+                <div className="ba-user-role">{user?.role === 'ADMIN' ? 'ADMIN' : 'Patient'}</div>
               </div>
             </div>
             <button className="ba-logout-btn" onClick={handleLogout}>Sign Out</button>
@@ -553,7 +603,13 @@ export default function BookAppointment({ setIsLoggedIn }) {
                       <div className="ba-service-spec">{svc.specialist}</div>
                       <div className="ba-service-tag">{svc.tag}</div>
                     </div>
-                    <div className="ba-service-rating">⭐ {svc.rating}</div>
+                    <div className="ba-service-rating">
+                      {specialistRatings[svc.specialist] ? (
+                        <>⭐ {specialistRatings[svc.specialist].rating.toFixed(1)} ({specialistRatings[svc.specialist].reviews})</>
+                      ) : (
+                        <>⭐ N/A</>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

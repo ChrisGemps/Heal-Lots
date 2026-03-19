@@ -52,7 +52,7 @@ public class AppointmentService {
         return appointmentRepository.findByUserId(userOpt.get().getId());
     }
 
-    public Appointment updateAppointmentStatus(UUID appointmentId, String newStatus) throws Exception {
+    public Appointment updateAppointmentStatus(UUID appointmentId, String newStatus, String cancellationReason) throws Exception {
         Optional<Appointment> apptOpt = appointmentRepository.findById(appointmentId);
         if (apptOpt.isEmpty()) {
             throw new IllegalArgumentException("Appointment not found.");
@@ -60,10 +60,13 @@ public class AppointmentService {
 
         Appointment appt = apptOpt.get();
         appt.setStatus(newStatus);
+        if (cancellationReason != null && !cancellationReason.trim().isEmpty()) {
+            appt.setCancellationReason(cancellationReason);
+        }
         return appointmentRepository.save(appt);
     }
 
-    public Appointment updateAppointment(UUID appointmentId, String appointmentDate, String timeSlot, String rescheduleReason) throws Exception {
+    public Appointment updateAppointment(UUID appointmentId, String appointmentDate, String timeSlot, String rescheduleReason, String status) throws Exception {
         Optional<Appointment> apptOpt = appointmentRepository.findById(appointmentId);
         if (apptOpt.isEmpty()) {
             throw new IllegalArgumentException("Appointment not found.");
@@ -72,10 +75,13 @@ public class AppointmentService {
         Appointment appt = apptOpt.get();
         appt.setAppointmentDate(appointmentDate);
         appt.setTimeSlot(timeSlot);
-        appt.setStatus("Pending");
-        // Store reschedule reason in notes for tracking
+        if (status != null && !status.trim().isEmpty()) {
+            appt.setStatus(status);
+        } else {
+            appt.setStatus("Pending");
+        }
         if (rescheduleReason != null && !rescheduleReason.trim().isEmpty()) {
-            appt.setNotes("Rescheduled: " + rescheduleReason);
+            appt.setRescheduleReason(rescheduleReason);
         }
         return appointmentRepository.save(appt);
     }

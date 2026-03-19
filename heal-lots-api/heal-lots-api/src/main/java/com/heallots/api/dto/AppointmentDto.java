@@ -18,6 +18,8 @@ public class AppointmentDto {
     private String reason;
     private String notes;
     private String status;
+    private String rescheduleReason;
+    private String cancellationReason;
     private String createdAt;
 
     public static AppointmentDto fromAppointment(Appointment appt) {
@@ -32,6 +34,8 @@ public class AppointmentDto {
         dto.setReason(appt.getReason());
         dto.setNotes(appt.getNotes());
         dto.setStatus(appt.getStatus());
+        dto.setRescheduleReason(appt.getRescheduleReason());
+        dto.setCancellationReason(appt.getCancellationReason());
         dto.setCreatedAt(appt.getCreatedAt() != null ? appt.getCreatedAt().toString() : null);
         return dto;
     }

@@ -10,15 +10,36 @@ export default function Profile({ setIsLoggedIn }) {
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Patient';
 
-  // Generate user-specific key for photo storage
-  const getPhotoKey = () => user?.email ? `userPhoto_${user.email}` : 'userPhoto';
+  const getPhotoKey = () => `userPhoto_${user?.id}`;
 
   const [editing, setEditing] = useState(false);
   const [saving,  setSaving]  = useState(false);
   const [success, setSuccess] = useState(false);
   const [error,   setError]   = useState('');
 
-  const [photo, setPhoto] = useState(() => user?.profilePictureUrl || localStorage.getItem(getPhotoKey()) || null);
+  // Helper: convert any stored profilePictureUrl format to a displayable URL
+  const buildPhotoUrl = (val) => {
+    if (!val) return null;
+    if (val.startsWith('data:')) return val;               // base64 preview
+    if (val.startsWith('http')) return val;                // already full URL
+    if (val.startsWith('/uploads/')) {
+      // Old path format — extract filename and use API endpoint
+      return 'http://localhost:8080/api/user/profile-picture/' + val.split('/').pop();
+    }
+    // Bare filename (current backend format)
+    return 'http://localhost:8080/api/user/profile-picture/' + val;
+  };
+
+  const [photo, setPhoto] = useState(() => {
+    // Prefer localStorage (already a full URL), fall back to DB value
+    const stored  = localStorage.getItem(getPhotoKey());
+    const fromDb  = user?.profilePictureUrl;
+    if (stored && !stored.startsWith('data:') && stored.startsWith('http')) return stored;
+    const built = buildPhotoUrl(fromDb);
+    // Sync localStorage so other pages can read it immediately
+    if (built) localStorage.setItem(getPhotoKey(), built);
+    return built || stored || null;
+  });
   const [photoError, setPhotoError] = useState('');
 
   const [pwForm, setPwForm] = useState({ current: '', newPass: '', confirm: '' });
@@ -70,23 +91,48 @@ export default function Profile({ setIsLoggedIn }) {
   };
   const pwStr = pwStrength();
 
-  const handlePhotoChange = (e) => {
+  const handlePhotoChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) {
-      setPhotoError('Photo must be under 3MB.');
-      return;
-    }
-    if (!file.type.startsWith('image/')) {
-      setPhotoError('Please upload a valid image file.');
-      return;
-    }
+    if (file.size > 5 * 1024 * 1024) { setPhotoError('Photo must be under 5MB.'); return; }
+    if (!file.type.startsWith('image/')) { setPhotoError('Please upload a valid image file.'); return; }
     setPhotoError('');
+    setError('');
+
+    // Show preview immediately via FileReader
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onerror = () => setPhotoError('Failed to read file. Please try again.');
+    reader.onload = async (ev) => {
       const dataUrl = ev.target.result;
       setPhoto(dataUrl);
       localStorage.setItem(getPhotoKey(), dataUrl);
+
+      // Upload to backend immediately
+      try {
+        const token = localStorage.getItem('token');
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await axios.post(
+          'http://localhost:8080/api/user/upload-profile-picture',
+          formData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        // Backend now returns just the filename
+        const filename = res.data?.profilePictureUrl || '';
+        const fullUrl = filename
+          ? 'http://localhost:8080/api/user/profile-picture/' + filename
+          : dataUrl;
+
+        // Persist full server URL everywhere
+        setPhoto(fullUrl);
+        localStorage.setItem(getPhotoKey(), fullUrl);
+        const raw2 = localStorage.getItem('user');
+        const u2   = raw2 && raw2 !== 'undefined' ? JSON.parse(raw2) : {};
+        localStorage.setItem('user', JSON.stringify({ ...u2, profilePictureUrl: filename }));
+      } catch (uploadErr) {
+        console.error('Photo upload error:', uploadErr);
+        // Keep base64 preview even if upload fails — will retry on Save
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -113,17 +159,65 @@ export default function Profile({ setIsLoggedIn }) {
     setSuccess(false);
     try {
       const token = localStorage.getItem('token');
+      
+      // First, update profile data (without photo)
       const dataToSend = {
-        ...form,
-        profilePictureUrl: photo,
+        fullName: form.fullName,
+        email: form.email,
+        phone: form.phone,
+        birthday: form.birthday,
+        gender: form.gender,
+        address: form.address,
       };
+      
       const res = await axios.put('http://localhost:8080/api/user/profile', dataToSend, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const updated = { ...user, ...form, profilePictureUrl: res.data.profilePictureUrl };
-      localStorage.setItem('user', JSON.stringify(updated));
-      localStorage.setItem(getPhotoKey(), res.data.profilePictureUrl || photo);
-      setPhoto(res.data.profilePictureUrl || photo);
+      
+      // If photo is still a base64 data URL (upload failed silently), retry upload now
+      if (photo && photo.startsWith('data:')) {
+        try {
+          const response2 = await fetch(photo);
+          const blob2 = await response2.blob();
+          const formData2 = new FormData();
+          formData2.append('file', blob2, 'profile-pic.jpg');
+          const photoRes = await axios.post('http://localhost:8080/api/user/upload-profile-picture', formData2, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const filename = photoRes.data?.profilePictureUrl || '';
+          const fullUrl2 = filename
+            ? 'http://localhost:8080/api/user/profile-picture/' + filename
+            : '';
+          setPhoto(fullUrl2);
+          localStorage.setItem(getPhotoKey(), fullUrl2);
+          localStorage.setItem('user', JSON.stringify({ ...user, ...form, profilePictureUrl: filename }));
+        } catch (photoErr) {
+          console.error('Photo upload retry error:', photoErr);
+        }
+      } else {
+        // Photo already uploaded or unchanged — just sync localStorage
+        // Re-read user from localStorage to get the fresh profilePictureUrl
+        const raw2 = localStorage.getItem('user');
+        const u2 = raw2 && raw2 !== 'undefined' ? JSON.parse(raw2) : {};
+        const filename = res.data?.profilePictureUrl || u2?.profilePictureUrl || '';
+        const fullUrl3 = filename && !filename.startsWith('data:')
+          ? 'http://localhost:8080/api/user/profile-picture/' + filename
+          : filename || photo;
+        localStorage.setItem(getPhotoKey(), fullUrl3 || '');
+        localStorage.setItem('user', JSON.stringify({ ...u2, ...form, profilePictureUrl: filename }));
+        if (fullUrl3) setPhoto(fullUrl3);
+      }
+      
+      // Update form state with the response data
+      setForm({
+        fullName: res.data.fullName || form.fullName,
+        email: res.data.email || form.email,
+        phone: res.data.phone || form.phone,
+        birthday: res.data.birthday || form.birthday,
+        gender: res.data.gender || form.gender,
+        address: res.data.address || form.address,
+      });
+      
       setSuccess(true);
       setEditing(false);
       setTimeout(() => setSuccess(false), 3000);
@@ -220,6 +314,15 @@ export default function Profile({ setIsLoggedIn }) {
           cursor: pointer; transition: all 0.18s;
         }
         .ud-logout-btn:hover { background: rgba(217,119,6,0.22); border-color: rgba(217,119,6,0.5); }
+        .ud-admin-btn {
+          background: #bbab81;
+          border: none;
+          color: #1c1408; border-radius: 20px; padding: 8px 18px;
+          font-size: 12px; font-weight: 700; font-family: 'DM Sans', sans-serif;
+          cursor: pointer; transition: all 0.18s;
+          letter-spacing: 0.5px; text-transform: uppercase;
+        }
+        .ud-admin-btn:hover { background: #f59e0b; box-shadow: 0 4px 12px rgba(217,119,6,0.3); }
 
         /* ── MAIN ── */
         .pf-main {
@@ -551,6 +654,11 @@ export default function Profile({ setIsLoggedIn }) {
           </div>
           <div className="ud-topbar-right">
             <nav className="ud-topbar-nav">
+              {user?.role === 'ADMIN' && (
+                <button className="ud-admin-btn" onClick={() => navigate('/admin')} title="Go to Admin Panel">
+                  ADMIN dashboard
+                </button>
+              )}
               <Link to="/dashboard"    className={location.pathname === '/dashboard'    ? 'active' : ''}>Dashboard</Link>
               <Link to="/book"         className={location.pathname === '/book'         ? 'active' : ''}>Book Session</Link>
               <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
@@ -564,7 +672,7 @@ export default function Profile({ setIsLoggedIn }) {
               </div>
               <div className="ud-user-info">
                 <div className="ud-user-name">{displayName}</div>
-                <div className="ud-user-role">Patient</div>
+                <div className="ud-user-role">{user?.role === 'ADMIN' ? 'ADMIN' : 'Patient'}</div>
               </div>
             </div>
             <button className="ud-logout-btn" onClick={handleLogout}>Sign Out</button>
@@ -610,7 +718,7 @@ export default function Profile({ setIsLoggedIn }) {
             <input
               id="pf-photo-input"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif"
               style={{ display: 'none' }}
               onChange={handlePhotoChange}
             />
@@ -632,7 +740,7 @@ export default function Profile({ setIsLoggedIn }) {
                 {form.email    && <span className="pf-hero-chip">Email: {form.email}</span>}
                 {age           && <span className="pf-hero-chip">Age: {age} yrs old</span>}
                 {form.gender   && <span className="pf-hero-chip">Gender: {form.gender === 'male' ? '♂️' : '♀️'} {formatGender(form.gender)}</span>}
-                <span className="pf-hero-chip">Status: Patient</span>
+                <span className="pf-hero-chip">Status: {user?.role === 'ADMIN' ? 'ADMIN' : 'Patient'}</span>
               </div>
             </div>
           </div>

@@ -6,12 +6,28 @@ export default function UserDashboard({ setIsLoggedIn }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [appointments, setAppointments] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedRating, setSelectedRating] = useState('all');
 
   const raw = localStorage.getItem('user');
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Patient';
-  const photo = user?.profilePictureUrl || localStorage.getItem(user?.email ? `userPhoto_${user.email}` : 'userPhoto') || null;
+  const getPhotoKey = () => `userPhoto_${user?.id}`;
+  const buildPhotoUrl = (val) => {
+    if (!val) return null;
+    if (val.startsWith('data:') || val.startsWith('http')) return val;
+    if (val.startsWith('/uploads/')) return 'http://localhost:8080/api/user/profile-picture/' + val.split('/').pop();
+    return 'http://localhost:8080/api/user/profile-picture/' + val;
+  };
+  const photo = (() => {
+    const stored = localStorage.getItem(getPhotoKey());
+    const fromDb = user?.profilePictureUrl;
+    if (stored && stored.startsWith('http')) return stored;
+    const built = buildPhotoUrl(fromDb);
+    if (built) localStorage.setItem(getPhotoKey(), built);
+    return built || stored || null;
+  })();
 
   // Fetch appointments from backend
   useEffect(() => {
@@ -52,6 +68,22 @@ export default function UserDashboard({ setIsLoggedIn }) {
     fetchAppointments();
   }, []);
 
+  // Fetch reviews from backend
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const response = await axios.get('http://localhost:8080/api/reviews');
+        console.log('Successfully fetched reviews:', response.data);
+        setReviews(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        console.error('Error fetching reviews:', err);
+        setReviews([]);
+      }
+    };
+    
+    fetchReviews();
+  }, []);
+
   // Helper function to determine if appointment is upcoming
   const isUpcoming = (dateString) => {
     try {
@@ -66,6 +98,22 @@ export default function UserDashboard({ setIsLoggedIn }) {
 
   // Show only upcoming appointments on dashboard
   const upcomingAppointments = appointments.filter(a => isUpcoming(a.date)).slice(0, 3);
+
+  // Calculate review stats
+  const totalReviews = reviews.length;
+  const averageRating = totalReviews > 0
+    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1)
+    : 0;
+
+  // Filter reviews based on selected rating and sort by newest first
+  const filteredReviews = (selectedRating === 'all' 
+    ? reviews 
+    : reviews.filter(r => r.rating === parseInt(selectedRating))
+  ).sort((a, b) => {
+    const dateA = new Date(a.createdAt);
+    const dateB = new Date(b.createdAt);
+    return dateB - dateA;
+  });
 
   const statusColors = {
     Pending: { bg: '#fef3c7', color: '#b45309' },
@@ -318,6 +366,272 @@ export default function UserDashboard({ setIsLoggedIn }) {
         .ud-empty-icon { font-size: 40px; margin-bottom: 12px; }
         .ud-empty p { font-size: 15px; }
 
+        /* ── REVIEWS ── */
+        .ud-reviews-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 24px;
+          margin-top: 48px;
+          margin-bottom: 18px;
+        }
+
+        .ud-reviews-title {
+          font-family: 'Fraunces', serif;
+          font-size: 22px;
+          font-weight: 700;
+          color: #1c1408;
+          flex-shrink: 0;
+        }
+
+        .ud-reviews-stats {
+          display: flex;
+          align-items: center;
+          gap: 32px;
+          background: transparent;
+          padding: 0;
+          border-radius: 0;
+          border: none;
+        }
+
+        .ud-reviews-stat {
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .ud-reviews-stat-value {
+          font-size: 28px;
+          font-weight: 700;
+          color: #d97706;
+          line-height: 1;
+        }
+
+        .ud-reviews-stat-label {
+          font-size: 10px;
+          color: #a8956b;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          font-weight: 600;
+          margin-top: 6px;
+        }
+
+        /* ── REVIEWS FILTER TABS ── */
+        .ud-reviews-container {
+          background: #fff;
+          border: 1.5px solid #f0e6d3;
+          border-radius: 16px;
+          overflow: hidden;
+          margin-top: 0;
+        }
+
+        .ud-reviews-tabs {
+          display: flex;
+          align-items: center;
+          border-bottom: 1.5px solid #f0e6d3;
+          overflow-x: auto;
+          padding: 0 24px;
+          background: #fff;
+        }
+
+        .ud-reviews-tab {
+          background: none;
+          border: none;
+          padding: 14px 16px;
+          font-size: 13px;
+          font-weight: 600;
+          color: #78716c;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+          font-family: 'DM Sans', sans-serif;
+          position: relative;
+          text-transform: capitalize;
+        }
+
+        .ud-reviews-tab:hover {
+          color: #d97706;
+        }
+
+        .ud-reviews-tab.active {
+          color: #d97706;
+        }
+
+        .ud-reviews-tab.active::after {
+          content: '';
+          position: absolute;
+          bottom: -1.5px;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: #d97706;
+        }
+
+        .ud-tab-count {
+          font-size: 12px;
+          color: #a8956b;
+          margin-left: 6px;
+          font-weight: 500;
+        }
+
+        .ud-reviews-list {
+          padding: 20px 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          max-height: 500px;
+          overflow-y: auto;
+        }
+
+        .ud-reviews-list::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .ud-reviews-list::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .ud-reviews-list::-webkit-scrollbar-thumb {
+          background: #d4cfc5;
+          border-radius: 3px;
+        }
+
+        .ud-reviews-list::-webkit-scrollbar-thumb:hover {
+          background: #c4bfb5;
+        }
+
+        .ud-review-item {
+          display: flex;
+          gap: 12px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid #f5ede0;
+          animation: fadeIn 0.2s ease-in;
+        }
+
+        .ud-review-item:last-child {
+          border-bottom: none;
+          padding-bottom: 0;
+        }
+
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-3px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .ud-review-avatar-small {
+          width: 40px;
+          height: 40px;
+          background: linear-gradient(135deg, #fef3c7, #fde68a);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          flex-shrink: 0;
+          font-weight: 600;
+          color: #b45309;
+          overflow: hidden;
+        }
+
+        .ud-review-avatar-small img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          border-radius: 50%;
+        }
+
+        .ud-review-content { flex: 1; }
+
+        .ud-review-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 4px;
+          gap: 12px;
+        }
+
+        .ud-review-specialist {
+          font-size: 14px;
+          font-weight: 600;
+          color: #1c1408;
+        }
+
+        .ud-review-rating-stars {
+          font-size: 12px;
+          letter-spacing: 1px;
+          flex-shrink: 0;
+        }
+
+        .ud-review-service {
+          font-size: 12px;
+          color: #78716c;
+          margin-bottom: 6px;
+        }
+
+        .ud-review-text {
+          font-size: 13px;
+          color: #1c1408;
+          line-height: 1.4;
+          font-weight: 400;
+          margin-bottom: 8px;
+        }
+
+        .ud-review-date {
+          font-size: 11px;
+          color: #a8956b;
+        }
+
+        .ud-no-reviews {
+          padding: 60px 24px;
+          text-align: center;
+          color: #a8956b;
+        }
+
+        .ud-no-reviews-message {
+          font-size: 15px;
+          font-weight: 500;
+          color: #78716c;
+        }
+
+        .ud-no-reviews-subtext {
+          font-size: 13px;
+          margin-top: 8px;
+          color: #b8aca2;
+        }
+
+        @media (max-width: 768px) {
+          .ud-reviews-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+          .ud-reviews-stats { gap: 24px; }
+          .ud-reviews-tab { padding: 12px 12px; font-size: 12px; }
+          .ud-reviews-list { max-height: 450px; }
+        }
+
+        @media (max-width: 480px) {
+          .ud-reviews-header { width: 100%; }
+          .ud-reviews-stats { justify-content: flex-start; }
+          .ud-reviews-tab { padding: 10px 8px; font-size: 11px; }
+          .ud-tab-count { display: none; }
+          .ud-review-item { gap: 10px; }
+          .ud-review-avatar-small { width: 36px; height: 36px; font-size: 14px; }
+        }
+
+        .ud-admin-btn {
+          background: #bbab81;
+          border: none;
+          color: #1c1408; border-radius: 20px; padding: 8px 18px;
+          font-size: 12px; font-weight: 700; font-family: 'DM Sans', sans-serif;
+          cursor: pointer; transition: all 0.18s;
+          letter-spacing: 0.5px; text-transform: uppercase;
+        }
+        .ud-admin-btn:hover { background: #f59e0b; box-shadow: 0 4px 12px rgba(217,119,6,0.3); }
+
         @media (max-width: 768px) {
           .ud-actions { grid-template-columns: 1fr; }
           .ud-topbar { padding: 0 20px; }
@@ -334,6 +648,11 @@ export default function UserDashboard({ setIsLoggedIn }) {
           </div>
           <div className="ud-topbar-right">
             <nav className="ud-topbar-nav">
+              {user?.role === 'ADMIN' && (
+                <button className="ud-admin-btn" onClick={() => navigate('/admin')} title="Go to Admin Panel">
+                  ADMIN dashboard
+                </button>
+              )}
               <Link to="/dashboard"    className={location.pathname === '/dashboard'    ? 'active' : ''}>Dashboard</Link>
               <Link to="/book"         className={location.pathname === '/book'         ? 'active' : ''}>Book Session</Link>
               <Link to="/appointments" className={location.pathname === '/appointments' ? 'active' : ''}>My Appointments</Link>
@@ -344,7 +663,7 @@ export default function UserDashboard({ setIsLoggedIn }) {
               </div>
               <div className="ud-user-info">
                 <div className="ud-user-name">{displayName}</div>
-                <div className="ud-user-role">Patient</div>
+                <div className="ud-user-role">{user?.role === 'ADMIN' ? 'ADMIN' : 'Patient'}</div>
               </div>
             </div>
             <button className="ud-logout-btn" onClick={handleLogout}>Sign Out</button>
@@ -422,7 +741,90 @@ export default function UserDashboard({ setIsLoggedIn }) {
             )}
           </div>
 
+        {/* REVIEWS SECTION */}
+        <div className="ud-reviews-header">
+          <h2 className="ud-reviews-title">Community Reviews</h2>
+          <div className="ud-reviews-stats">
+            <div className="ud-reviews-stat">
+              <div className="ud-reviews-stat-value">{averageRating}</div>
+              <div className="ud-reviews-stat-label">Avg Rating</div>
+            </div>
+            <div className="ud-reviews-stat">
+              <div className="ud-reviews-stat-value">{totalReviews}</div>
+              <div className="ud-reviews-stat-label">Total Reviews</div>
+            </div>
+          </div>
         </div>
+
+        {/* REVIEWS CONTAINER WITH TABS */}
+        <div className="ud-reviews-container">
+          {totalReviews === 0 ? (
+            <div className="ud-no-reviews">
+              <div className="ud-no-reviews-message">No reviews yet</div>
+              <div className="ud-no-reviews-subtext">Book a session and share your experience</div>
+            </div>
+          ) : (
+            <>
+              {/* FILTER TABS */}
+              <div className="ud-reviews-tabs">
+                <button
+                  className={`ud-reviews-tab ${selectedRating === 'all' ? 'active' : ''}`}
+                  onClick={() => setSelectedRating('all')}
+                >
+                  All
+                  <span className="ud-tab-count">({totalReviews})</span>
+                </button>
+                {[5, 4, 3, 2, 1].map((star) => {
+                  const count = reviews.filter(r => r.rating === star).length;
+                  return (
+                    <button
+                      key={star}
+                      className={`ud-reviews-tab ${selectedRating === star.toString() ? 'active' : ''}`}
+                      onClick={() => setSelectedRating(star.toString())}
+                    >
+                      {star}⭐
+                      <span className="ud-tab-count">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* REVIEWS LIST */}
+              <div className="ud-reviews-list">
+                {filteredReviews.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '32px 24px', color: '#a8956b' }}>
+                    <div style={{ fontSize: '14px', fontWeight: '500' }}>No {selectedRating === 'all' ? 'reviews' : `${selectedRating}-star reviews`}</div>
+                  </div>
+                ) : (
+                  filteredReviews.map((review, idx) => (
+                    <div key={idx} className="ud-review-item">
+                      <div className="ud-review-avatar-small">
+                        {buildPhotoUrl(review.patientProfilePictureUrl) ? (
+                          <img src={buildPhotoUrl(review.patientProfilePictureUrl)} alt={review.patientName} />
+                        ) : (
+                          review.patientName?.charAt(0).toUpperCase() || '👤'
+                        )}
+                      </div>
+                      <div className="ud-review-content">
+                        <div className="ud-review-header">
+                          <div className="ud-review-specialist"><i>Specialist:</i> {review.specialistName}</div>
+                          <div className="ud-review-rating-stars">{'⭐'.repeat(review.rating)}</div>
+                        </div>
+                        <div className="ud-review-service"><i>Service:</i> {review.serviceName}</div>
+                        <div className="ud-review-text">{review.reviewText || '(No comment provided)'}</div>
+                        <div className="ud-review-date">
+                          {review.patientName} • {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : 'Recently'}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        </div>  
       </div>
     </>
   );

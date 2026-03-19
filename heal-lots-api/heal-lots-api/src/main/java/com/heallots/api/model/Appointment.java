@@ -38,6 +38,12 @@ public class Appointment {
     @Column(name = "status", nullable = false)
     private String status;
 
+    @Column(name = "reschedule_reason")
+    private String rescheduleReason;
+
+    @Column(name = "cancellation_reason")
+    private String cancellationReason;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
