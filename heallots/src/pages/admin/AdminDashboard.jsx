@@ -35,7 +35,14 @@ export default function AdminDashboard({ setIsLoggedIn }) {
   const [reschedulingDate, setReschedulingDate] = useState('');
   const [reschedulingTime, setReschedulingTime] = useState('');
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
+  const [confirmMarkAsApproved, setConfirmMarkAsApproved] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [notification, setNotification] = useState(null);
+
+  const showNotification = (message, type = 'success', duration = 3000) => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), duration);
+  };
 
   const timeSlots = {
     morning: ['08:00', '09:00', '10:00', '11:00', '12:00'],
@@ -169,8 +176,20 @@ export default function AdminDashboard({ setIsLoggedIn }) {
           { status: newStatus },
           { headers: { Authorization: `Bearer ${token}` } }
         );
+        
+        // Show success notification
+        if (newStatus === 'Approved') {
+          showNotification('Appointment approved successfully ✓', 'success');
+        } else if (newStatus === 'Cancelled') {
+          showNotification('Appointment rejected successfully ✕', 'success');
+        } else {
+          showNotification(`Status updated to ${newStatus}`, 'success');
+        }
       } catch (err) {
         console.error('Error updating appointment status:', err);
+        showNotification('Failed to update appointment status', 'error');
+        // Revert UI change on error
+        setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: prev.find(x => x.id === id)?.status } : a));
       }
     };
     
@@ -222,6 +241,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
     setSelectedAppt(null);
     setRescheduleMode(false);
     setShowConfirmCancel(false);
+    setConfirmMarkAsApproved(false);
     setReschedulingDate('');
     setReschedulingTime('');
   };
@@ -243,10 +263,10 @@ export default function AdminDashboard({ setIsLoggedIn }) {
       );
 
       closeModal();
-      alert('Appointment cancelled successfully');
+      showNotification('Appointment cancelled successfully', 'success');
     } catch (err) {
       console.error('Error cancelling appointment:', err);
-      alert('Failed to cancel appointment');
+      showNotification('Failed to cancel appointment', 'error');
     }
   };
 
@@ -275,10 +295,10 @@ export default function AdminDashboard({ setIsLoggedIn }) {
       );
 
       closeModal();
-      alert('Appointment Rescheduled Successfully.');
+      showNotification('Appointment rescheduled successfully', 'success');
     } catch (err) {
       console.error('Error rescheduling appointment:', err);
-      alert('Failed to reschedule appointment');
+      showNotification('Failed to reschedule appointment', 'error');
     }
   };
 
@@ -299,10 +319,10 @@ export default function AdminDashboard({ setIsLoggedIn }) {
       );
 
       closeModal();
-      alert('Appointment marked as done successfully');
+      showNotification('Appointment marked as done successfully', 'success');
     } catch (err) {
       console.error('Error marking appointment as done:', err);
-      alert('Failed to mark appointment as done');
+      showNotification('Failed to mark appointment as done', 'error');
     }
   };
 
@@ -587,7 +607,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
           display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;
         }
         .ad-btn-primary {
-          background: linear-gradient(135deg, #d97706, #b45309);
+          background: linear-gradient(135deg, #f6aa28, #b45309);
           color: #fff; border: none; border-radius: 9px; padding: 9px 18px;
           font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif;
           transition: all 0.15s;
@@ -600,11 +620,11 @@ export default function AdminDashboard({ setIsLoggedIn }) {
         }
         .ad-btn-secondary:hover { background: #ede3d6; }
         .ad-btn-danger {
-          background: #fee2e2; color: #dc2626; border: 1.5px solid #fecaca;
+          background: #b0bd5b; color: #ffffff; border: 1.5px solid #aae520;
           border-radius: 9px; padding: 9px 18px; font-size: 13px; font-weight: 600;
           cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s;
         }
-        .ad-btn-danger:hover { background: #fecaca; }
+        .ad-btn-danger:hover { background: #ca5a5a; }
 
         /* ── CONFIRM DIALOG ── */
         .ad-confirm-dialog {
@@ -631,9 +651,83 @@ export default function AdminDashboard({ setIsLoggedIn }) {
           .ad-sidebar { display: none; }
           .ad-main    { padding: 20px 16px; }
         }
+
+        /* ── NOTIFICATION ── */
+        .ad-notification {
+          position: fixed;
+          top: 75px;
+          right: 20px;
+          max-width: 400px;
+          padding: 16px 20px;
+          border-radius: 12px;
+          font-size: 14px;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+          z-index: 2000;
+          animation: slideInRight 0.3s ease-out;
+        }
+
+        @keyframes slideInRight {
+          from {
+            opacity: 0;
+            transform: translateX(100px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        .ad-notification.success {
+          background: #51f88b;
+          color: #0f582a;
+          border: 1.5px solid #bbf7d0;
+        }
+
+        .ad-notification.error {
+          background: #c4f367;
+          color: #dc2626;
+          border: 1.5px solid #fecaca;
+        }
+
+        .ad-notification.info {
+          background: #e0f2fe;
+          color: #0369a1;
+          border: 1.5px solid #bae6fd;
+        }
+
+        .ad-notification-icon {
+          font-size: 18px;
+          flex-shrink: 0;
+        }
+
+        .ad-notification-message {
+          flex: 1;
+        }
+
+        @media (max-width: 640px) {
+          .ad-notification {
+            left: 12px;
+            right: 12px;
+            max-width: none;
+          }
+        }
       `}</style>
 
       <div className="ad-layout">
+
+        {/* ── NOTIFICATION ── */}
+        {notification && (
+          <div className={`ad-notification ${notification.type}`}>
+            <span className="ad-notification-icon">
+              {notification.type === 'success' ? '✓' : notification.type === 'error' ? '✕' : 'ℹ'}
+            </span>
+            <div className="ad-notification-message">{notification.message}</div>
+          </div>
+        )}
 
         {/* ── TOPBAR ── */}
         <div className="ad-topbar">
@@ -729,7 +823,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                                 {(a.status === 'Pending' || a.status === 'Rescheduled by Patient') && (
                                   <>
                                     <button className="ad-btn-approve" onClick={() => handleStatus(a.id, 'Approved')}>✓ Approve</button>
-                                    <button className="ad-btn-reject"  onClick={() => handleStatus(a.id, 'Cancelled')}>✕ Reject</button>
+                                    <button className="ad-btn-reject" onClick={() => {openModal(a); setShowConfirmCancel(true);}}>✕ Reject</button>
                                   </>
                                 )}
                               </div>
@@ -815,7 +909,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                                   {(a.status === 'Pending' || a.status === 'Rescheduled by Patient') && (
                                     <>
                                       <button className="ad-btn-approve" onClick={() => handleStatus(a.id, 'Approved')}>✓ Approve</button>
-                                      <button className="ad-btn-reject"  onClick={() => handleStatus(a.id, 'Cancelled')}>✕ Reject</button>
+                                      <button className="ad-btn-reject" onClick={() => {openModal(a); setShowConfirmCancel(true);}}>✕ Reject</button>
                                     </>
                                   )}
                                 </div>
@@ -1035,7 +1129,6 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                     className="ad-btn-primary" 
                     onClick={() => {
                       handleStatus(selectedAppt.id, 'Approved');
-                      alert('Appointment approved successfully');
                       closeModal();
                     }}
                     style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}
@@ -1049,12 +1142,12 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                   <button className="ad-btn-secondary" onClick={closeModal}>Close</button>
                   {selectedAppt.status === 'Approved' && (
                     <>
-                      <button className="ad-btn-danger" onClick={() => setShowConfirmCancel(true)}>Cancel</button>
+                      <button className="ad-btn-danger" onClick={() => setShowConfirmCancel(true)}>Call Off</button>
                       <button className="ad-btn-primary" onClick={() => setRescheduleMode(true)}>Reschedule</button>
                       <button 
                         className="ad-btn-primary" 
                         onClick={handleMarkAsDone}
-                        style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)' }}
+                        style={{ background: 'linear-gradient(145deg, #819dcd, #0034a3)' }}
                       >
                         ✓ Mark as Done
                       </button>
@@ -1067,15 +1160,10 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                   <button className="ad-btn-secondary" onClick={closeModal}>Close</button>
                   <button 
                     className="ad-btn-primary" 
-                    onClick={() => {
-                      if (window.confirm('Are you sure you want to mark this appointment as Approved?')) {
-                        handleStatus(selectedAppt.id, 'Approved');
-                        alert('Appointment marked as Approved successfully');
-                      }
-                    }}
+                    onClick={() => setConfirmMarkAsApproved(true)}
                     style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}
                   >
-                    ↩ Mark as Approved
+                    ↩ Return Status to Approved
                   </button>
                 </>
               )}
@@ -1261,6 +1349,33 @@ export default function AdminDashboard({ setIsLoggedIn }) {
             <div className="ad-confirm-actions">
               <button className="ad-btn-secondary" onClick={() => setShowConfirmCancel(false)}>Keep It</button>
               <button className="ad-btn-danger" onClick={handleCancelAppointment}>Yes, Cancel Appointment</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CONFIRM MARK AS APPROVED ── */}
+      {modalOpen && selectedAppt && confirmMarkAsApproved && (
+        <div className="ad-modal-overlay" onClick={() => setConfirmMarkAsApproved(false)}>
+          <div className="ad-confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="ad-confirm-icon">📋</div>
+            <div className="ad-confirm-title">Mark as Approved?</div>
+            <div className="ad-confirm-message">
+              Are you sure you want to mark this appointment for <strong>{selectedAppt.patient}</strong> as Approved? This action cannot be undone.
+            </div>
+            <div className="ad-confirm-actions">
+              <button className="ad-btn-secondary" onClick={() => setConfirmMarkAsApproved(false)}>Cancel</button>
+              <button 
+                className="ad-btn-primary"
+                onClick={() => {
+                  handleStatus(selectedAppt.id, 'Approved');
+                  setConfirmMarkAsApproved(false);
+                  closeModal();
+                }}
+                style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}
+              >
+                Yes, Mark as Approved
+              </button>
             </div>
           </div>
         </div>

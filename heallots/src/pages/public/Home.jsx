@@ -279,7 +279,7 @@ export default function Home({ isLoggedIn, setIsLoggedIn }) {
               <div className="hl-contact-card">
                 <div className="hl-contact-icon">🕐</div>
                 <h4>Operating Hours</h4>
-                <p>Mon – Sun: 8AM – 6PM<span>24/7 Upon Emergency</span></p>
+                <p>Mon – Sat : 8AM – 6PM<span>24/7 Upon Emergency</span></p>
               </div>
             </div>
           </div>

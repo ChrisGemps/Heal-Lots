@@ -201,7 +201,7 @@ export default function Profile({ setIsLoggedIn }) {
         const u2 = raw2 && raw2 !== 'undefined' ? JSON.parse(raw2) : {};
         const filename = res.data?.profilePictureUrl || u2?.profilePictureUrl || '';
         const fullUrl3 = filename && !filename.startsWith('data:')
-          ? 'http://localhost:8080/api/user/profile-picture/' + filename
+            ? 'http://localhost:8080/api/user/profile-picture/' + filename
           : filename || photo;
         localStorage.setItem(getPhotoKey(), fullUrl3 || '');
         localStorage.setItem('user', JSON.stringify({ ...u2, ...form, profilePictureUrl: filename }));
