@@ -11,6 +11,10 @@ const statusStyle = {
   'Canceled by Patient': { bg: '#fee2e2', color: '#dc2626', dot: '#ef4444' },
 };
 
+const getStatusStyle = (status) => {
+  return statusStyle[status] || { bg: '#f3f0eb', color: '#6b5a4e', dot: '#9b8878' };
+};
+
 const serviceEmoji = {
   'Traditional Hilot':  '🤲🏻',
   'Herbal Compress':    '🌿',
@@ -800,7 +804,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                     </tr></thead>
                     <tbody>
                       {appointments.slice(0, 4).map(a => {
-                        const st = statusStyle[a.status];
+                        const st = getStatusStyle(a.status);
                         return (
                           <tr key={a.id}>
                             <td><strong>{a.patient}</strong></td>
@@ -886,7 +890,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                       </tr></thead>
                       <tbody>
                         {filteredAppts.map(a => {
-                          const st = statusStyle[a.status];
+                          const st = getStatusStyle(a.status);
                           return (
                             <tr key={a.id}>
                               <td><strong>{a.patient}</strong></td>
