@@ -10,7 +10,6 @@ import com.heallots.api.service.AuthService;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:3000")
 public class AuthController {
     @Autowired
     private AuthService authService;
