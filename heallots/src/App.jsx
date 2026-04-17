@@ -4,18 +4,18 @@ import { useState } from "react";
 import Navbar from "./components/Navbar";
 
 // Public pages
-import Home         from "./pages/public/Home";
-import Login        from "./pages/public/Login";
-import Register     from "./pages/public/Register";
+import Home         from "./features/public/pages/Home";
+import Login        from "./features/authentication/pages/Login";
+import Register     from "./features/authentication/pages/Register";
 
 // User-only pages
-import UserDashboard    from "./pages/user/UserDashboard";
-import BookAppointment  from "./pages/user/BookAppointment";
-import MyAppointments   from "./pages/user/MyAppointments";
-import Profile          from "./pages/user/Profile";
+import UserDashboard    from "./features/user-profile/pages/UserDashboard";
+import BookAppointment  from "./features/appointments/pages/BookAppointment";
+import MyAppointments   from "./features/appointments/pages/MyAppointments";
+import Profile          from "./features/user-profile/pages/Profile";
 
 // Admin-only pages
-import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminDashboard from "./features/admin-dashboard/pages/AdminDashboard";
 
 // ── Protected route wrappers ──────────────────────────────────────────────────
 
