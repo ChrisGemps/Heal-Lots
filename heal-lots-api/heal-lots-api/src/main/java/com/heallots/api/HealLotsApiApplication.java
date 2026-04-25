@@ -14,7 +14,7 @@ import org.springframework.context.annotation.ComponentScan;
 public class HealLotsApiApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(HealLotsApiApplication.class, args);
+		SpringApplication.run(HealLotsApiApplication.class, args);	
 	}
 
 }
