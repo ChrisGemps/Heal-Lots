@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { API_BASE_URL } from '../../../utils/apiConfig';
 
 const services = [
   { icon: '🤲🏻', title: 'Traditional Hilot',  desc: 'Ancient Filipino healing massage using oils and skilled hands to restore energy flow.', tag: 'Most Popular', color: '#fef3c7', accent: '#d97706' },
@@ -30,7 +31,7 @@ export default function Home({ isLoggedIn, setIsLoggedIn }) {
     if (!val) return null;
     if (val.startsWith('data:') || val.startsWith('http')) return val;
     // Filename from database — serve via backend endpoint
-    return 'http://localhost:8080/api/user/profile-picture/' + val;
+    return `${API_BASE_URL}/api/user/profile-picture/${val}`;
   };
   const photo = (() => {
     const stored = localStorage.getItem(getPhotoKey());

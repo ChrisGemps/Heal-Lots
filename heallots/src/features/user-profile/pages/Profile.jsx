@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../../../utils/apiConfig';
 
 export default function Profile({ setIsLoggedIn }) {
   const navigate   = useNavigate();
@@ -24,7 +25,7 @@ export default function Profile({ setIsLoggedIn }) {
     if (val.startsWith('data:')) return val;               // base64 preview
     if (val.startsWith('http')) return val;                // already full URL
     // Filename from database — serve via backend endpoint
-    return 'http://localhost:8080/api/user/profile-picture/' + val;
+    return `${API_BASE_URL}/api/user/profile-picture/${val}`;
   };
 
   // Fetch latest user profile from backend on component mount
@@ -33,7 +34,7 @@ export default function Profile({ setIsLoggedIn }) {
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
-        const response = await axios.get('http://localhost:8080/api/user/profile', {
+        const response = await axios.get(`${API_BASE_URL}/api/user/profile`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (response.data) {
@@ -97,7 +98,7 @@ export default function Profile({ setIsLoggedIn }) {
     setPwSaving(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.put('http://localhost:8080/api/user/change-password', {
+      await axios.put(`${API_BASE_URL}/api/user/change-password`, {
         currentPassword: pwForm.current,
         newPassword:     pwForm.newPass,
       }, { headers: { Authorization: `Bearer ${token}` } });
@@ -149,14 +150,14 @@ export default function Profile({ setIsLoggedIn }) {
         const formData = new FormData();
         formData.append('file', file);
         const res = await axios.post(
-          'http://localhost:8080/api/user/upload-profile-picture',
+          `${API_BASE_URL}/api/user/upload-profile-picture`,
           formData,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         // Backend now returns just the filename
         const filename = res.data?.profilePictureUrl || '';
         const fullUrl = filename
-          ? 'http://localhost:8080/api/user/profile-picture/' + filename
+          ? `${API_BASE_URL}/api/user/profile-picture/${filename}`
           : dataUrl;
 
         // Persist full server URL everywhere
@@ -206,7 +207,7 @@ export default function Profile({ setIsLoggedIn }) {
         address: form.address,
       };
       
-      const res = await axios.put('http://localhost:8080/api/user/profile', dataToSend, {
+      const res = await axios.put(`${API_BASE_URL}/api/user/profile`, dataToSend, {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -217,12 +218,12 @@ export default function Profile({ setIsLoggedIn }) {
           const blob2 = await response2.blob();
           const formData2 = new FormData();
           formData2.append('file', blob2, 'profile-pic.jpg');
-          const photoRes = await axios.post('http://localhost:8080/api/user/upload-profile-picture', formData2, {
+          const photoRes = await axios.post(`${API_BASE_URL}/api/user/upload-profile-picture`, formData2, {
             headers: { Authorization: `Bearer ${token}` },
           });
           const filename = photoRes.data?.profilePictureUrl || '';
           const fullUrl2 = filename
-            ? 'http://localhost:8080/api/user/profile-picture/' + filename
+            ? `${API_BASE_URL}/api/user/profile-picture/${filename}`
             : '';
           setPhoto(fullUrl2);
           localStorage.setItem(getPhotoKey(), fullUrl2);
@@ -237,7 +238,7 @@ export default function Profile({ setIsLoggedIn }) {
         const u2 = raw2 && raw2 !== 'undefined' ? JSON.parse(raw2) : {};
         const filename = res.data?.profilePictureUrl || u2?.profilePictureUrl || '';
         const fullUrl3 = filename && !filename.startsWith('data:')
-            ? 'http://localhost:8080/api/user/profile-picture/' + filename
+            ? `${API_BASE_URL}/api/user/profile-picture/${filename}`
           : filename || photo;
         localStorage.setItem(getPhotoKey(), fullUrl3 || '');
         localStorage.setItem('user', JSON.stringify({ ...u2, ...form, profilePictureUrl: filename }));

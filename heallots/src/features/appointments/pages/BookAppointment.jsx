@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../../../utils/apiConfig';
 
 const SERVICES = [
   { id: 1, name: 'Traditional Hilot',   specialist: 'Manang Rosa',    emoji: '🤲🏻', tag: 'Most Popular' },
@@ -77,7 +78,7 @@ export default function BookAppointment({ setIsLoggedIn }) {
     const fetchApprovedAppointments = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:8080/api/appointments/all', {
+        const response = await axios.get(`${API_BASE_URL}/api/appointments/all`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
@@ -97,7 +98,7 @@ export default function BookAppointment({ setIsLoggedIn }) {
     const fetchSpecialistRatings = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:8080/api/reviews/specialist-ratings', {
+        const response = await axios.get(`${API_BASE_URL}/api/reviews/specialist-ratings`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
@@ -150,7 +151,7 @@ export default function BookAppointment({ setIsLoggedIn }) {
         notes: notes,
       };
       
-      const response = await axios.post('http://localhost:8080/api/appointments/book', appointmentData, {
+      const response = await axios.post(`${API_BASE_URL}/api/appointments/book`, appointmentData, {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -175,7 +176,7 @@ export default function BookAppointment({ setIsLoggedIn }) {
     if (!val) return null;
     if (val.startsWith('data:') || val.startsWith('http')) return val;
     // Filename from database — serve via backend endpoint
-    return 'http://localhost:8080/api/user/profile-picture/' + val;
+    return `${API_BASE_URL}/api/user/profile-picture/${val}`;
   };
   const photo = (() => {
     const stored = localStorage.getItem(getPhotoKey());

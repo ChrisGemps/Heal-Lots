@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../../../utils/apiConfig';
 
 function Register() {
   const [form, setForm] = useState({
@@ -35,7 +36,7 @@ function Register() {
     if (form.password.length < 6) { setError('Password must be at least 6 characters.'); return; }
     setLoading(true);
     try {
-      await axios.post('http://localhost:8080/api/auth/register', {
+      await axios.post(`${API_BASE_URL}/api/auth/register`, {
         fullName: form.fullName,
         email:    form.email,
         password: form.password,

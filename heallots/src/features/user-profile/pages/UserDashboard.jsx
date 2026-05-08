@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../../../utils/apiConfig';
 
 export default function UserDashboard({ setIsLoggedIn }) {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ export default function UserDashboard({ setIsLoggedIn }) {
     if (!val) return null;
     if (val.startsWith('data:') || val.startsWith('http')) return val;
     // Filename from database — serve via backend endpoint
-    return 'http://localhost:8080/api/user/profile-picture/' + val;
+    return `${API_BASE_URL}/api/user/profile-picture/${val}`;
   };
   const photo = (() => {
     const stored = localStorage.getItem(getPhotoKey());
@@ -34,7 +35,7 @@ export default function UserDashboard({ setIsLoggedIn }) {
     const fetchAppointments = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:8080/api/appointments/user', {
+        const response = await axios.get(`${API_BASE_URL}/api/appointments/user`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
@@ -72,7 +73,7 @@ export default function UserDashboard({ setIsLoggedIn }) {
   useEffect(() => {
     const fetchReviews = async () => {
       try {
-        const response = await axios.get('http://localhost:8080/api/reviews');
+        const response = await axios.get(`${API_BASE_URL}/api/reviews`);
         console.log('Successfully fetched reviews:', response.data);
         setReviews(Array.isArray(response.data) ? response.data : []);
       } catch (err) {

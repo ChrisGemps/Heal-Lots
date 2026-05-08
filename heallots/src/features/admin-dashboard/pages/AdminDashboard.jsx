@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../../../utils/apiConfig';
 
 const statusStyle = {
   Pending:   { bg: '#fef3c7', color: '#b45309', dot: '#d97706' },
@@ -83,7 +84,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
     if (!val) return null;
     if (val.startsWith('data:') || val.startsWith('http')) return val;
     // Filename from database — serve via backend endpoint
-    return 'http://localhost:8080/api/user/profile-picture/' + val;
+    return `${API_BASE_URL}/api/user/profile-picture/${val}`;
   };
   const photo = (() => {
     const stored = localStorage.getItem(getPhotoKey());
@@ -107,7 +108,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
     const fetchAppointments = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:8080/api/appointments/all', {
+        const response = await axios.get(`${API_BASE_URL}/api/appointments/all`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
@@ -144,7 +145,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
     const fetchUsers = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:8080/api/user/all', {
+        const response = await axios.get(`${API_BASE_URL}/api/user/all`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
@@ -176,7 +177,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
     const updateBackend = async () => {
       try {
         const token = localStorage.getItem('token');
-        await axios.put(`http://localhost:8080/api/appointments/${id}/status`, 
+        await axios.put(`${API_BASE_URL}/api/appointments/${id}/status`, 
           { status: newStatus },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -256,7 +257,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
     try {
       const token = localStorage.getItem('token');
       await axios.put(
-        `http://localhost:8080/api/appointments/${selectedAppt.id}/status`,
+        `${API_BASE_URL}/api/appointments/${selectedAppt.id}/status`,
         { status: 'Cancelled' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -280,7 +281,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
     try {
       const token = localStorage.getItem('token');
       await axios.put(
-        `http://localhost:8080/api/appointments/${selectedAppt.id}`,
+        `${API_BASE_URL}/api/appointments/${selectedAppt.id}`,
         { 
           appointmentDate: reschedulingDate,
           timeSlot: reschedulingTime,
@@ -312,7 +313,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
     try {
       const token = localStorage.getItem('token');
       await axios.put(
-        `http://localhost:8080/api/appointments/${selectedAppt.id}/status`,
+        `${API_BASE_URL}/api/appointments/${selectedAppt.id}/status`,
         { status: 'Done' },
         { headers: { Authorization: `Bearer ${token}` } }
       );

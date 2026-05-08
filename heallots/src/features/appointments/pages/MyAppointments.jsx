@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../../../utils/apiConfig";
 
 // Calendar constants
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -50,7 +51,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
     if (!val) return null;
     if (val.startsWith('data:') || val.startsWith('http')) return val;
     // Filename from database — serve via backend endpoint
-    return 'http://localhost:8080/api/user/profile-picture/' + val;
+    return `${API_BASE_URL}/api/user/profile-picture/${val}`;
   };
   const photo = (() => {
     const stored = localStorage.getItem(getPhotoKey());
@@ -172,7 +173,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
       };
 
       // Submit review to backend
-      const response = await axios.post('http://localhost:8080/api/reviews', reviewData, {
+      const response = await axios.post(`${API_BASE_URL}/api/reviews`, reviewData, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -214,7 +215,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
     try {
       const token = localStorage.getItem('token');
       await axios.put(
-        `http://localhost:8080/api/appointments/${appointmentId}/status`,
+        `${API_BASE_URL}/api/appointments/${appointmentId}/status`,
         { status: 'Canceled by Patient', cancellationReason: cancelReason },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -248,7 +249,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
     try {
       const token = localStorage.getItem('token');
       await axios.put(
-        `http://localhost:8080/api/appointments/${appointmentId}`,
+        `${API_BASE_URL}/api/appointments/${appointmentId}`,
         { 
           appointmentDate: reschedulingDate,
           timeSlot: reschedulingTime,
@@ -270,7 +271,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
     const fetchAppointments = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:8080/api/appointments/user', {
+        const response = await axios.get(`${API_BASE_URL}/api/appointments/user`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
@@ -300,7 +301,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
         const appointmentsWithReviewStatus = await Promise.all(
           transformedAppointments.map(async (appt) => {
             try {
-              const reviewResponse = await axios.get(`http://localhost:8080/api/reviews/appointment/${appt.id}/reviewed`, {
+              const reviewResponse = await axios.get(`${API_BASE_URL}/api/reviews/appointment/${appt.id}/reviewed`, {
                 headers: { Authorization: `Bearer ${token}` },
               });
               return { ...appt, reviewed: reviewResponse.data.reviewed };
