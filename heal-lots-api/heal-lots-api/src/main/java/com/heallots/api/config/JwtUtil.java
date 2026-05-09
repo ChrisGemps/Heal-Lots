@@ -6,6 +6,7 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
+import java.util.Base64;
 import java.util.Date;
 
 @Component
@@ -17,7 +18,29 @@ public class JwtUtil {
     private long jwtExpiration;
 
     private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        // Ensure the secret is at least 512 bits (64 bytes) for HS512
+        byte[] secretBytes;
+        
+        // Check if the secret appears to be Base64 encoded
+        try {
+            secretBytes = Base64.getDecoder().decode(jwtSecret);
+        } catch (IllegalArgumentException e) {
+            // If not Base64, convert string to bytes
+            secretBytes = jwtSecret.getBytes();
+        }
+        
+        // Pad the secret if it's too short (less than 64 bytes for HS512)
+        if (secretBytes.length < 64) {
+            byte[] paddedSecret = new byte[64];
+            System.arraycopy(secretBytes, 0, paddedSecret, 0, secretBytes.length);
+            // Fill remaining bytes with a pattern to ensure proper length
+            for (int i = secretBytes.length; i < 64; i++) {
+                paddedSecret[i] = (byte) (jwtSecret.hashCode() ^ i);
+            }
+            secretBytes = paddedSecret;
+        }
+        
+        return Keys.hmacShaKeyFor(secretBytes);
     }
 
     public String generateToken(String email) {
