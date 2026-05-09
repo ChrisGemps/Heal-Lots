@@ -8,9 +8,11 @@ import com.heallots.api.features.authentication.dto.AuthResponse;
 import com.heallots.api.features.authentication.dto.UpdateProfileRequest;
 import com.heallots.api.config.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import java.util.Optional;
+import java.util.Locale;
 
 @Service
 public class AuthService {
@@ -24,21 +26,31 @@ public class AuthService {
     private JwtUtil jwtUtil;
 
     public AuthResponse register(RegisterRequest req) throws Exception {
-        if (userRepository.findByEmail(req.getEmail()).isPresent()) {
+        String normalizedEmail = normalizeEmail(req.getEmail());
+        if (normalizedEmail == null) {
+            throw new IllegalArgumentException("Email is required.");
+        }
+
+        if (userRepository.existsByEmailIgnoreCase(normalizedEmail)) {
             throw new Exception("An account with this email already exists.");
         }
 
         User user = new User();
-        user.setFullName(req.getFullName());
-        user.setEmail(req.getEmail());
+        user.setFullName(trimToNull(req.getFullName()));
+        user.setEmail(normalizedEmail);
         user.setPassword(passwordEncoder.encode(req.getPassword()));
-        user.setPhone(req.getPhone());
-        user.setBirthday(req.getBirthday());
-        user.setGender(req.getGender());
-        user.setAddress(req.getAddress());
+        user.setPhone(trimToNull(req.getPhone()));
+        user.setBirthday(trimToNull(req.getBirthday()));
+        user.setGender(trimToNull(req.getGender()));
+        user.setAddress(trimToNull(req.getAddress()));
         user.setRole("USER");
 
-        User savedUser = userRepository.save(user);
+        User savedUser;
+        try {
+            savedUser = userRepository.save(user);
+        } catch (DataIntegrityViolationException ex) {
+            throw new Exception("An account with this email already exists.");
+        }
         String token = jwtUtil.generateToken(savedUser.getEmail());
 
         AuthResponse response = new AuthResponse();
@@ -48,7 +60,10 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest req) throws Exception {
-        Optional<User> userOpt = userRepository.findByEmail(req.getEmail());
+        String normalizedEmail = normalizeEmail(req.getEmail());
+        Optional<User> userOpt = normalizedEmail == null
+                ? Optional.empty()
+                : userRepository.findByEmailIgnoreCase(normalizedEmail);
         if (userOpt.isEmpty()) {
             throw new Exception("Invalid email or password.");
         }
@@ -67,7 +82,7 @@ public class AuthService {
     }
 
     public void changePassword(String email, String currentPassword, String newPassword) throws Exception {
-        Optional<User> userOpt = userRepository.findByEmail(email);
+        Optional<User> userOpt = findUserByEmail(email);
         if (userOpt.isEmpty()) {
             throw new IllegalArgumentException("User not found.");
         }
@@ -82,26 +97,45 @@ public class AuthService {
     }
 
     public User updateProfile(String email, UpdateProfileRequest req) throws Exception {
-        Optional<User> userOpt = userRepository.findByEmail(email);
+        Optional<User> userOpt = findUserByEmail(email);
         if (userOpt.isEmpty()) {
             throw new IllegalArgumentException("User not found.");
         }
 
         User user = userOpt.get();
         
-        if (req.getFullName() != null) user.setFullName(req.getFullName());
-        if (req.getEmail() != null) user.setEmail(req.getEmail());
-        if (req.getPhone() != null) user.setPhone(req.getPhone());
-        if (req.getBirthday() != null) user.setBirthday(req.getBirthday());
-        if (req.getGender() != null) user.setGender(req.getGender());
-        if (req.getAddress() != null) user.setAddress(req.getAddress());
-        if (req.getProfilePictureUrl() != null) user.setProfilePictureUrl(req.getProfilePictureUrl());
-        
-        return userRepository.save(user);
+        if (req.getFullName() != null) user.setFullName(trimToNull(req.getFullName()));
+        if (req.getPhone() != null) user.setPhone(trimToNull(req.getPhone()));
+        if (req.getBirthday() != null) user.setBirthday(trimToNull(req.getBirthday()));
+        if (req.getGender() != null) user.setGender(trimToNull(req.getGender()));
+        if (req.getAddress() != null) user.setAddress(trimToNull(req.getAddress()));
+        if (req.getProfilePictureUrl() != null) user.setProfilePictureUrl(trimToNull(req.getProfilePictureUrl()));
+
+        if (req.getEmail() != null) {
+            String normalizedEmail = normalizeEmail(req.getEmail());
+            if (normalizedEmail == null) {
+                throw new IllegalArgumentException("Email is required.");
+            }
+
+            boolean emailTakenByAnotherUser = userRepository.findByEmailIgnoreCase(normalizedEmail)
+                    .filter(existingUser -> !existingUser.getId().equals(user.getId()))
+                    .isPresent();
+            if (emailTakenByAnotherUser) {
+                throw new IllegalArgumentException("An account with this email already exists.");
+            }
+
+            user.setEmail(normalizedEmail);
+        }
+
+        try {
+            return userRepository.save(user);
+        } catch (DataIntegrityViolationException ex) {
+            throw new IllegalArgumentException("An account with this email already exists.");
+        }
     }
 
     public User updateProfilePicture(String email, String profilePictureUrl) throws Exception {
-        Optional<User> userOpt = userRepository.findByEmail(email);
+        Optional<User> userOpt = findUserByEmail(email);
         if (userOpt.isEmpty()) {
             throw new IllegalArgumentException("User not found.");
         }
@@ -109,5 +143,32 @@ public class AuthService {
         User user = userOpt.get();
         user.setProfilePictureUrl(profilePictureUrl);
         return userRepository.save(user);
+    }
+
+    private Optional<User> findUserByEmail(String email) {
+        String normalizedEmail = normalizeEmail(email);
+        if (normalizedEmail == null) {
+            return Optional.empty();
+        }
+
+        return userRepository.findByEmailIgnoreCase(normalizedEmail);
+    }
+
+    private String normalizeEmail(String email) {
+        String trimmedEmail = trimToNull(email);
+        if (trimmedEmail == null) {
+            return null;
+        }
+
+        return trimmedEmail.toLowerCase(Locale.ROOT);
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmedValue = value.trim();
+        return trimmedValue.isEmpty() ? null : trimmedValue;
     }
 }
