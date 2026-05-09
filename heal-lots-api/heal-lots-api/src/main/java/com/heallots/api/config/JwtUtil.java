@@ -6,8 +6,11 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Date;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 @Component
 public class JwtUtil {
@@ -18,29 +21,37 @@ public class JwtUtil {
     private long jwtExpiration;
 
     private SecretKey getSigningKey() {
-        // Ensure the secret is at least 512 bits (64 bytes) for HS512
-        byte[] secretBytes;
-        
-        // Check if the secret appears to be Base64 encoded
-        try {
-            secretBytes = Base64.getDecoder().decode(jwtSecret);
-        } catch (IllegalArgumentException e) {
-            // If not Base64, convert string to bytes
-            secretBytes = jwtSecret.getBytes();
-        }
-        
-        // Pad the secret if it's too short (less than 64 bytes for HS512)
-        if (secretBytes.length < 64) {
-            byte[] paddedSecret = new byte[64];
-            System.arraycopy(secretBytes, 0, paddedSecret, 0, secretBytes.length);
-            // Fill remaining bytes with a pattern to ensure proper length
-            for (int i = secretBytes.length; i < 64; i++) {
-                paddedSecret[i] = (byte) (jwtSecret.hashCode() ^ i);
-            }
-            secretBytes = paddedSecret;
-        }
-        
+        byte[] secretBytes = resolveSecretBytes();
         return Keys.hmacShaKeyFor(secretBytes);
+    }
+
+    private byte[] resolveSecretBytes() {
+        byte[] secretBytes = decodeBase64Secret(jwtSecret);
+        if (secretBytes == null) {
+            secretBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
+        }
+
+        if (secretBytes.length >= 64) {
+            return secretBytes;
+        }
+
+        return sha512(secretBytes);
+    }
+
+    private byte[] decodeBase64Secret(String secret) {
+        try {
+            return Base64.getDecoder().decode(secret);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private byte[] sha512(byte[] value) {
+        try {
+            return MessageDigest.getInstance("SHA-512").digest(value);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-512 is not available on this JVM.", e);
+        }
     }
 
     public String generateToken(String email) {
