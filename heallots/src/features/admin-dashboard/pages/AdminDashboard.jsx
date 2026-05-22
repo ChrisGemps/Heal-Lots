@@ -350,10 +350,10 @@ export default function AdminDashboard({ setIsLoggedIn }) {
   });
 
   const stats = [
-    { label: 'Total Appointments',     value: appointments.length,                                        icon: '📋', bg: '#fef3c7', accent: '#d97706' },
-    { label: 'Pending Appointments',   value: appointments.filter(a => a.status === 'Pending').length,    icon: '⏳', bg: '#fef9c3', accent: '#ca8a04' },
-    { label: 'Approved Appointments',  value: appointments.filter(a => a.status === 'Approved').length,   icon: '✅', bg: '#dcfce7', accent: '#16a34a' },
-    { label: 'Patients',  value: users.filter(u => u.role === 'USER').length,            icon: '👥', bg: '#e0f2fe', accent: '#0284c7' },
+    { label: 'Total Appointments',     value: appointments.length,                                        icon: '📋', bg: '#fef3c7', accent: '#d97706', clickable: false },
+    { label: 'Pending Appointments',   value: appointments.filter(a => a.status === 'Pending').length,    icon: '⏳', bg: '#fef9c3', accent: '#ca8a04', clickable: false },
+    { label: 'Approved Appointments',  value: appointments.filter(a => a.status === 'Approved').length,   icon: '✅', bg: '#dcfce7', accent: '#16a34a', clickable: false },
+    { label: 'Patients',  value: users.filter(u => u.role === 'USER').length,            icon: '👥', bg: '#e0f2fe', accent: '#0284c7', clickable: true },
   ];
 
   const navItems = [
@@ -467,6 +467,8 @@ export default function AdminDashboard({ setIsLoggedIn }) {
           border-radius: 16px 16px 0 0;
         }
         .ad-stat:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.07); }
+        .ad-stat.clickable { cursor: pointer; }
+        .ad-stat.clickable:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(217,119,6,0.15); }
         .ad-stat-icon { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
         .ad-stat-val  { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 900; line-height: 1; margin-bottom: 2px; }
         .ad-stat-lbl  { font-size: 12px; color: #9b8878; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -788,7 +790,12 @@ export default function AdminDashboard({ setIsLoggedIn }) {
 
                 <div className="ad-stats">
                   {stats.map(s => (
-                    <div className="ad-stat" key={s.label} style={{'--accent': s.accent}}>
+                    <div 
+                      key={s.label} 
+                      className={`ad-stat${s.clickable ? ' clickable' : ''}`} 
+                      style={{'--accent': s.accent}}
+                      onClick={() => s.clickable && setTab('patients')}
+                    >
                       <div className="ad-stat-icon" style={{ background: s.bg }}>{s.icon}</div>
                       <div>
                         <div className="ad-stat-val" style={{ color: s.accent }}>{s.value}</div>
