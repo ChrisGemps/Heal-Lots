@@ -423,6 +423,8 @@ export default function AdminDashboard({ setIsLoggedIn }) {
           border-right: 1.5px solid #ede3d6;
           padding: 20px 10px;
           display: flex; flex-direction: column; gap: 3px;
+          visibility: visible;
+          opacity: 1;
         }
         .ad-sidebar-section {
           font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -491,7 +493,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
         .ad-filter-select {
           padding: 9px 32px 9px 12px; border: 1.5px solid #e8ddd0; border-radius: 9px;
           font-size: 13px; font-family: 'DM Sans', sans-serif; color: #1c1408;
-          background: #fafaf8 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23a8956b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+          background: #fafaf8 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23a8956b' stroke-width='1' fill='none'/%3E%3C/svg%3E") no-repeat right 8px center;
           appearance: none; outline: none; cursor: pointer; transition: border-color 0.18s;
         }
         .ad-filter-select:focus { border-color: #d97706; }
@@ -526,9 +528,9 @@ export default function AdminDashboard({ setIsLoggedIn }) {
 
         /* ── ACTION BTNS ── */
         .ad-actions { display: flex; gap: 6px; }
-        .ad-btn-approve { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; border-radius: 7px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+        .ad-btn-approve { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; border-radius: 7px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
         .ad-btn-approve:hover { background: #bbf7d0; transform: translateY(-1px); }
-        .ad-btn-reject  { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; border-radius: 7px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+        .ad-btn-reject  { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; border-radius: 7px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
         .ad-btn-reject:hover { background: #fecaca; transform: translateY(-1px); }
 
         /* ── ROLE BADGES ── */
@@ -651,8 +653,11 @@ export default function AdminDashboard({ setIsLoggedIn }) {
           display: flex; gap: 10px; justify-content: center;
         }
 
-        @media (max-width: 900px) {
+        @media (max-width: 1200px) {
           .ad-stats   { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 768px) {
           .ad-sidebar { display: none; }
           .ad-main    { padding: 20px 16px; }
         }
