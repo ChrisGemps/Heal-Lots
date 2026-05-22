@@ -856,7 +856,7 @@ export default function Profile({ setIsLoggedIn }) {
                   }}
                 />
               ) : null}
-              {!photo && displayName.charAt(0).toUpperCase()}}
+              {!photo && displayName.charAt(0).toUpperCase()}
               <div className="pf-avatar-overlay">
                 <span>Change</span>
                 <span>Photo</span>
