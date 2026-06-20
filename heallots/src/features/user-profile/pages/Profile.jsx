@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../utils/apiConfig';
@@ -11,7 +11,7 @@ export default function Profile({ setIsLoggedIn }) {
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Patient';
 
-  const getPhotoKey = () => `userPhoto_${user?.id}`;
+  const getPhotoKey = useCallback(() => `userPhoto_${user?.id}`, [user?.id]);
 
   const [editing, setEditing] = useState(false);
   const [saving,  setSaving]  = useState(false);
@@ -65,7 +65,7 @@ export default function Profile({ setIsLoggedIn }) {
       }
     };
     fetchLatestProfile();
-  }, [getPhotoKey, user?.id]);
+  }, [getPhotoKey]);
 
   const [photo, setPhoto] = useState(() => {
     // Prefer localStorage (already a full URL), fall back to DB value

@@ -202,6 +202,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
   };
 
   // Helper function to check if appointment is at least 24 hours away
+  // eslint-disable-next-line no-unused-vars
   const canModifyAppointment = (dateString, timeString) => {
     try {
       const now = new Date();
