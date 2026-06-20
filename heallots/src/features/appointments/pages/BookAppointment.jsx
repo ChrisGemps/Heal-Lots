@@ -12,7 +12,6 @@ const SERVICES = [
   { id: 6, name: 'Whole-Body Hilot',    specialist: 'Ate Nena',       emoji: '🧘🏻', tag: 'Premium' },
 ];
 
-const TIME_SLOTS = ['8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'];
 const MORNING_SLOTS = ['8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM'];
 const AFTERNOON_SLOTS = ['1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'];
 const LUNCH_BREAK = '12:00 PM';
@@ -126,6 +125,33 @@ export default function BookAppointment({ setIsLoggedIn }) {
       appt.appointmentDate === selectedDate && 
       appt.timeSlot === slot
     );
+  };
+
+  // eslint-disable-next-line no-unused-vars
+  const canModifyAppointment = (dateString, timeString) => {
+    // Future use for checking if appointment can be modified
+    try {
+      const timeRegex = /\d{1,2}:\d{2}\s*(AM|PM)/i;
+      const timeMatch = timeString?.match(timeRegex);
+      let hour = 9, minute = 0;
+      if (timeMatch) {
+        hour = parseInt(timeMatch[1], 10);
+        minute = parseInt(timeMatch[2], 10);
+        const meridiem = timeMatch[3].toUpperCase();
+        if (meridiem === 'PM' && hour !== 12) hour += 12;
+        if (meridiem === 'AM' && hour === 12) hour = 0;
+      }
+      const parts = dateString.split('-');
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const appointmentDate = new Date(year, month, day, hour, minute, 0, 0);
+      const now = new Date();
+      const hoursLeft = (appointmentDate - now) / (1000 * 60 * 60);
+      return hoursLeft >= 24;
+    } catch (e) {
+      return true;
+    }
   };
 
   const prevMonth = () => {

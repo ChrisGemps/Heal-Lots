@@ -23,7 +23,6 @@ export default function MyAppointments({ setIsLoggedIn }) {
   const location = useLocation();
   const [tab, setTab] = useState("upcoming");
   const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [rescheduleMode, setRescheduleMode] = useState(false);
@@ -173,7 +172,7 @@ export default function MyAppointments({ setIsLoggedIn }) {
       };
 
       // Submit review to backend
-      const response = await axios.post(`${API_BASE_URL}/api/reviews`, reviewData, {
+      await axios.post(`${API_BASE_URL}/api/reviews`, reviewData, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -316,8 +315,6 @@ export default function MyAppointments({ setIsLoggedIn }) {
       } catch (err) {
         console.error('Error fetching appointments:', err);
         // Keep empty array if fetch fails
-      } finally {
-        setLoading(false);
       }
     };
     

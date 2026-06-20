@@ -65,7 +65,7 @@ export default function Profile({ setIsLoggedIn }) {
       }
     };
     fetchLatestProfile();
-  }, []);
+  }, [getPhotoKey, user?.id]);
 
   const [photo, setPhoto] = useState(() => {
     // Prefer localStorage (already a full URL), fall back to DB value

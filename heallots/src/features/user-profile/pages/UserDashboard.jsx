@@ -8,7 +8,6 @@ export default function UserDashboard({ setIsLoggedIn }) {
   const location = useLocation();
   const [appointments, setAppointments] = useState([]);
   const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [selectedRating, setSelectedRating] = useState('all');
 
   const raw = localStorage.getItem('user');
@@ -61,8 +60,6 @@ export default function UserDashboard({ setIsLoggedIn }) {
       } catch (err) {
         console.error('Error fetching appointments:', err);
         // Keep empty array if fetch fails
-      } finally {
-        setLoading(false);
       }
     };
     
