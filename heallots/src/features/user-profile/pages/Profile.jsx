@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../utils/apiConfig';
@@ -11,7 +11,7 @@ export default function Profile({ setIsLoggedIn }) {
   const user = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Patient';
 
-  const getPhotoKey = useCallback(() => `userPhoto_${user?.id}`, [user?.id]);
+  const photoKey = `userPhoto_${user?.id || 'guest'}`;
 
   const [editing, setEditing] = useState(false);
   const [saving,  setSaving]  = useState(false);
@@ -54,9 +54,7 @@ export default function Profile({ setIsLoggedIn }) {
           if (response.data?.profilePictureUrl) {
             const photoUrl = buildPhotoUrl(response.data.profilePictureUrl);
             setPhoto(photoUrl);
-            if (user?.id) {
-              localStorage.setItem(getPhotoKey(), photoUrl);
-            }
+            localStorage.setItem(photoKey, photoUrl);
           }
         }
       } catch (err) {
@@ -65,16 +63,16 @@ export default function Profile({ setIsLoggedIn }) {
       }
     };
     fetchLatestProfile();
-  }, [getPhotoKey]);
+  }, [photoKey]);
 
   const [photo, setPhoto] = useState(() => {
     // Prefer localStorage (already a full URL), fall back to DB value
-    const stored  = localStorage.getItem(getPhotoKey());
+    const stored  = localStorage.getItem(photoKey);
     const fromDb  = currentUser?.profilePictureUrl || user?.profilePictureUrl;
     if (stored && !stored.startsWith('data:') && stored.startsWith('http')) return stored;
     const built = buildPhotoUrl(fromDb);
     // Sync localStorage so other pages can read it immediately
-    if (built) localStorage.setItem(getPhotoKey(), built);
+    if (built) localStorage.setItem(photoKey, built);
     return built || stored || null;
   });
   const [photoError, setPhotoError] = useState('');
@@ -142,7 +140,7 @@ export default function Profile({ setIsLoggedIn }) {
     reader.onload = async (ev) => {
       const dataUrl = ev.target.result;
       setPhoto(dataUrl);
-      localStorage.setItem(getPhotoKey(), dataUrl);
+      localStorage.setItem(photoKey, dataUrl);
 
       // Upload to backend immediately
       try {
@@ -162,7 +160,7 @@ export default function Profile({ setIsLoggedIn }) {
 
         // Persist full server URL everywhere
         setPhoto(fullUrl);
-        localStorage.setItem(getPhotoKey(), fullUrl);
+        localStorage.setItem(photoKey, fullUrl);
         const raw2 = localStorage.getItem('user');
         const u2   = raw2 && raw2 !== 'undefined' ? JSON.parse(raw2) : {};
         localStorage.setItem('user', JSON.stringify({ ...u2, profilePictureUrl: filename }));
@@ -176,7 +174,7 @@ export default function Profile({ setIsLoggedIn }) {
 
   const handleRemovePhoto = () => {
     setPhoto(null);
-    localStorage.removeItem(getPhotoKey());
+    localStorage.removeItem(photoKey);
   };
 
   const [form, setForm] = useState({
@@ -226,7 +224,7 @@ export default function Profile({ setIsLoggedIn }) {
             ? `${API_BASE_URL}/api/user/profile-picture/${filename}`
             : '';
           setPhoto(fullUrl2);
-          localStorage.setItem(getPhotoKey(), fullUrl2);
+          localStorage.setItem(photoKey, fullUrl2);
           localStorage.setItem('user', JSON.stringify({ ...user, ...form, profilePictureUrl: filename }));
         } catch (photoErr) {
           console.error('Photo upload retry error:', photoErr);
@@ -240,7 +238,7 @@ export default function Profile({ setIsLoggedIn }) {
         const fullUrl3 = filename && !filename.startsWith('data:')
             ? `${API_BASE_URL}/api/user/profile-picture/${filename}`
           : filename || photo;
-        localStorage.setItem(getPhotoKey(), fullUrl3 || '');
+        localStorage.setItem(photoKey, fullUrl3 || '');
         localStorage.setItem('user', JSON.stringify({ ...u2, ...form, profilePictureUrl: filename }));
         if (fullUrl3) setPhoto(fullUrl3);
       }
