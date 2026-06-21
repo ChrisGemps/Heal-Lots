@@ -419,13 +419,17 @@ export default function AdminDashboard({ setIsLoggedIn }) {
 
         /* ── SIDEBAR ── */
         .ad-sidebar {
-          width: 210px; min-width: 210px; flex-shrink: 0;
+          width: 210px !important;
+          min-width: 210px !important;
+          flex-shrink: 0 !important;
+          display: flex !important;
+          visibility: visible !important;
+          opacity: 1 !important;
           background: #fff;
           border-right: 1.5px solid #ede3d6;
           padding: 20px 10px;
-          display: flex; flex-direction: column; gap: 3px;
-          visibility: visible;
-          opacity: 1;
+          flex-direction: column;
+          gap: 3px;
           position: sticky;
           top: 64px;
           max-height: calc(100vh - 64px);
