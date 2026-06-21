@@ -419,7 +419,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
 
         /* ── SIDEBAR ── */
         .ad-sidebar {
-          width: 210px; flex-shrink: 0;
+          width: 210px; min-width: 210px; flex-shrink: 0;
           background: #fff;
           border-right: 1.5px solid #ede3d6;
           padding: 20px 10px;
@@ -665,30 +665,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
         }
 
         @media (max-width: 768px) {
-          .ad-body {
-            flex-direction: column;
-          }
-
-          .ad-sidebar {
-            width: 100%;
-            border-right: none;
-            border-bottom: 1.5px solid #ede3d6;
-            padding: 14px 12px;
-            gap: 8px;
-            position: static;
-            max-height: none;
-            overflow: visible;
-          }
-
-          .ad-sidebar-section {
-            margin: 0 0 4px;
-          }
-
-          .ad-nav-btn {
-            flex: 1 1 180px;
-          }
-
-          .ad-main    { padding: 20px 16px; }
+          .ad-main { padding: 20px 16px; }
         }
 
         /* ── NOTIFICATION ── */
