@@ -775,7 +775,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
         <div className="ad-body">
 
           {/* ── SIDEBAR ── */}
-          <aside className="ad-sidebar">
+          <div className="ad-sidebar">
             <div className="ad-sidebar-section">Menu</div>
             {navItems.map(item => (
               <button key={item.id} className={`ad-nav-btn${tab === item.id ? ' active' : ''}`} onClick={() => setTab(item.id)}>
@@ -783,7 +783,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                 {item.label}
               </button>
             ))}
-          </aside>
+          </div>
 
           {/* ── MAIN ── */}
           <main className="ad-main">
