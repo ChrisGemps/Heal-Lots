@@ -415,7 +415,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
         .ad-logout-btn:hover { background: rgba(217,119,6,0.22); border-color: rgba(217,119,6,0.5); }
 
         /* ── BODY ── */
-        .ad-body { display: flex; flex: 1; min-height: 0; }
+        .ad-body { display: flex; flex: 1; min-height: 0; align-items: stretch; }
 
         /* ── SIDEBAR ── */
         .ad-sidebar {
@@ -426,6 +426,10 @@ export default function AdminDashboard({ setIsLoggedIn }) {
           display: flex; flex-direction: column; gap: 3px;
           visibility: visible;
           opacity: 1;
+          position: sticky;
+          top: 64px;
+          max-height: calc(100vh - 64px);
+          overflow-y: auto;
         }
         .ad-sidebar-section {
           font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -661,7 +665,29 @@ export default function AdminDashboard({ setIsLoggedIn }) {
         }
 
         @media (max-width: 768px) {
-          .ad-sidebar { display: none; }
+          .ad-body {
+            flex-direction: column;
+          }
+
+          .ad-sidebar {
+            width: 100%;
+            border-right: none;
+            border-bottom: 1.5px solid #ede3d6;
+            padding: 14px 12px;
+            gap: 8px;
+            position: static;
+            max-height: none;
+            overflow: visible;
+          }
+
+          .ad-sidebar-section {
+            margin: 0 0 4px;
+          }
+
+          .ad-nav-btn {
+            flex: 1 1 180px;
+          }
+
           .ad-main    { padding: 20px 16px; }
         }
 
