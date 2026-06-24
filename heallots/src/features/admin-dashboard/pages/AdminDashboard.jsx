@@ -415,7 +415,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
         .ad-logout-btn:hover { background: rgba(217,119,6,0.22); border-color: rgba(217,119,6,0.5); }
 
         /* ── BODY ── */
-        .ad-body { display: flex; flex: 1; min-height: 0; align-items: stretch; }
+        .ad-body { display: flex; flex: 1; min-height: calc(100vh - 64px); align-items: stretch; }
 
         /* ── SIDEBAR ── */
         .ad-sidebar {
@@ -775,7 +775,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
         <div className="ad-body">
 
           {/* ── SIDEBAR ── */}
-          <div className="ad-sidebar">
+          <aside className="ad-sidebar">
             <div className="ad-sidebar-section">Menu</div>
             {navItems.map(item => (
               <button key={item.id} className={`ad-nav-btn${tab === item.id ? ' active' : ''}`} onClick={() => setTab(item.id)}>
@@ -783,7 +783,7 @@ export default function AdminDashboard({ setIsLoggedIn }) {
                 {item.label}
               </button>
             ))}
-          </div>
+          </aside>
 
           {/* ── MAIN ── */}
           <main className="ad-main">
